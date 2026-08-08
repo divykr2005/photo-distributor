@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from api.endpoints import auth, events, dashboard
+from api.endpoints import auth, events, dashboard, guests
 from core.config import settings
 from middleware.rate_limit import limiter
 
@@ -35,6 +36,15 @@ app.include_router(
 app.include_router(
     dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["dashboard"]
 )
+app.include_router(
+    guests.router, prefix=f"{settings.API_V1_STR}/guests", tags=["guests"]
+)
+
+# Serve uploaded files
+import os
+upload_dir = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(upload_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
 
 @app.get("/")

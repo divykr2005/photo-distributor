@@ -43,6 +43,35 @@ export interface DashboardStats {
   registered_today: number;
 }
 
+// ── Guests ──
+
+export interface Guest {
+  id: string;
+  event_id: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email: string | null;
+  gender: string | null;
+  notes: string | null;
+  image_path: string | null;
+  embedding_status: "pending" | "success" | "failed";
+  consent_given_at: string | null;
+  created_at: string;
+  updated_at: string;
+  expires_at: string;
+}
+
+export interface GuestFormData {
+  event_id: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email?: string;
+  gender?: string;
+  notes?: string;
+}
+
 // ── Form data types ──
 
 export interface LoginFormData {
