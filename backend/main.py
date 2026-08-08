@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from api.endpoints import auth, events, dashboard, guests
+from api.endpoints import auth, events, dashboard, guests, event_photos
 from core.config import settings
 from middleware.rate_limit import limiter
 
@@ -38,6 +38,9 @@ app.include_router(
 )
 app.include_router(
     guests.router, prefix=f"{settings.API_V1_STR}/guests", tags=["guests"]
+)
+app.include_router(
+    event_photos.router, prefix=f"{settings.API_V1_STR}/events", tags=["event_photos"]
 )
 
 # Serve uploaded files

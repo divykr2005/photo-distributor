@@ -14,6 +14,10 @@ from core.config import settings
 from database.session import Base
 import models.user  # import models here to register them with Base.metadata
 import models.refresh_token
+import models.event
+import models.guest
+import models.event_photo
+import models.photo_match
 
 config = context.config
 
