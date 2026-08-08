@@ -2,7 +2,7 @@ import os
 import uuid
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_current_user, get_db
@@ -93,6 +93,7 @@ def delete_guest(
 @router.post("/{guest_id}/photo", response_model=GuestResponse)
 async def upload_guest_photo(
     guest_id: UUID,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

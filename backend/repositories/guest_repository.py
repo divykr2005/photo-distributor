@@ -86,6 +86,24 @@ class GuestRepository:
         self.db.refresh(guest)
         return guest
 
+    def update_embedding(
+        self,
+        guest_id: UUID,
+        embedding: Optional[list[float]],
+        status: str,
+        notes: Optional[str] = None
+    ) -> Optional[Guest]:
+        guest = self.get_by_id(guest_id)
+        if guest:
+            guest.face_embedding = embedding
+            guest.embedding_status = status
+            if notes:
+                # Append to existing notes or set new notes
+                guest.notes = f"{guest.notes}\n[System]: {notes}" if guest.notes else f"[System]: {notes}"
+            self.db.commit()
+            self.db.refresh(guest)
+        return guest
+
     def delete(self, guest: Guest) -> None:
         self.db.delete(guest)
         self.db.commit()
