@@ -1,0 +1,70 @@
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from api.dependencies import get_current_user, get_db
+from models.user import User
+from repositories.event_repository import EventRepository
+from schemas.event import EventCreate, EventResponse, EventUpdate
+
+router = APIRouter()
+
+
+@router.post("/", response_model=EventResponse, status_code=201)
+def create_event(
+    event_in: EventCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    repo = EventRepository(db)
+    return repo.create(event_in, current_user.id)
+
+
+@router.get("/", response_model=list[EventResponse])
+def list_events(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    repo = EventRepository(db)
+    return repo.get_all(current_user.id)
+
+
+@router.get("/{event_id}", response_model=EventResponse)
+def get_event(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    repo = EventRepository(db)
+    event = repo.get_by_id(event_id, current_user.id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return event
+
+
+@router.put("/{event_id}", response_model=EventResponse)
+def update_event(
+    event_id: UUID,
+    event_in: EventUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    repo = EventRepository(db)
+    event = repo.get_by_id(event_id, current_user.id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return repo.update(event, event_in)
+
+
+@router.delete("/{event_id}", status_code=204)
+def delete_event(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    repo = EventRepository(db)
+    event = repo.get_by_id(event_id, current_user.id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    repo.delete(event)
