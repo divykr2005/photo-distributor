@@ -16,12 +16,16 @@ import models.user  # import models here to register them with Base.metadata
 import models.refresh_token
 import models.event
 import models.guest
+import models.face_embedding
 import models.event_photo
 import models.photo_match
 
 config = context.config
 
-config.set_main_option("sqlalchemy.url", settings.SQLALCHEMY_DATABASE_URI)
+config.set_main_option(
+    "sqlalchemy.url",
+    settings.SQLALCHEMY_DATABASE_URI.replace("%", "%%"),
+)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
