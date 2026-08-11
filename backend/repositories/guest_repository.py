@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -51,8 +52,14 @@ class GuestRepository:
         )
 
     def search(
-        self, user_id: UUID, query: str | None = None, event_id: UUID | None = None
-    ) -> list[Guest]:
+        self,
+        user_id: UUID,
+        query: str | None = None,
+        event_id: UUID | None = None,
+        skip: int = 0,
+        limit: int = 20,
+    ) -> tuple[list[Guest], int]:
+        """Returns (page, total_count) for pagination."""
         from models.event import Event
 
         q = (
@@ -70,7 +77,9 @@ class GuestRepository:
                 | (Guest.phone.ilike(like))
                 | (Guest.email.ilike(like))
             )
-        return q.order_by(Guest.created_at.desc()).all()
+        total = q.count()
+        guests = q.order_by(Guest.created_at.desc()).offset(skip).limit(limit).all()
+        return guests, total
 
     def update(self, guest: Guest, guest_in: GuestUpdate) -> Guest:
         update_data = guest_in.model_dump(exclude_unset=True)
@@ -86,20 +95,17 @@ class GuestRepository:
         self.db.refresh(guest)
         return guest
 
-    def update_embedding(
+    def update_embedding_status(
         self,
         guest_id: UUID,
-        embedding: Optional[list[float]],
         status: str,
-        notes: Optional[str] = None
     ) -> Optional[Guest]:
+        """Update only the embedding_status on the guest record.
+        The actual embedding vector lives in the face_embeddings table.
+        """
         guest = self.get_by_id(guest_id)
         if guest:
-            guest.face_embedding = embedding
             guest.embedding_status = status
-            if notes:
-                # Append to existing notes or set new notes
-                guest.notes = f"{guest.notes}\n[System]: {notes}" if guest.notes else f"[System]: {notes}"
             self.db.commit()
             self.db.refresh(guest)
         return guest

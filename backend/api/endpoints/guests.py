@@ -2,23 +2,31 @@ import os
 import uuid
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, BackgroundTasks
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_current_user, get_db
 from models.event import Event
 from models.user import User
 from repositories.guest_repository import GuestRepository
+from repositories.face_embedding_repository import FaceEmbeddingRepository
 from schemas.guest import GuestCreate, GuestResponse, GuestUpdate
+from worker.face_processor import FaceQualityError
 
 router = APIRouter()
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "guests")
+UPLOAD_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "guests"
+)
 
 
 def _verify_event_owner(db: Session, event_id: UUID, user_id: UUID) -> Event:
     """Ensure the event exists and belongs to the current user."""
-    event = db.query(Event).filter(Event.id == event_id, Event.created_by == user_id).first()
+    event = (
+        db.query(Event)
+        .filter(Event.id == event_id, Event.created_by == user_id)
+        .first()
+    )
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     return event
@@ -35,15 +43,21 @@ def create_guest(
     return repo.create(guest_in)
 
 
-@router.get("/", response_model=list[GuestResponse])
+@router.get("/")
 def list_guests(
     event_id: UUID | None = Query(None),
     search: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     repo = GuestRepository(db)
-    return repo.search(current_user.id, query=search, event_id=event_id)
+    skip = (page - 1) * page_size
+    guests, total = repo.search(
+        current_user.id, query=search, event_id=event_id, skip=skip, limit=page_size
+    )
+    return {"data": guests, "total": total, "page": page, "page_size": page_size}
 
 
 @router.get("/{guest_id}", response_model=GuestResponse)
@@ -56,7 +70,6 @@ def get_guest(
     guest = repo.get_by_id(guest_id)
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
-    # Verify ownership through event
     _verify_event_owner(db, guest.event_id, current_user.id)
     return guest
 
@@ -93,33 +106,58 @@ def delete_guest(
 @router.post("/{guest_id}/photo", response_model=GuestResponse)
 async def upload_guest_photo(
     guest_id: UUID,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Validate file type
+    """
+    Upload (or retake) a guest registration photo.
+    - Validates file type and size client- and server-side.
+    - Runs the full InsightFace quality gate synchronously.
+    - On success: stores embedding in face_embeddings, sets embedding_status=success.
+    - On quality failure: returns HTTP 422 with the specific rejection reason.
+    """
+    # Server-side file validation
     if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
-        raise HTTPException(status_code=400, detail="Only JPEG, PNG, or WebP images are accepted")
+        raise HTTPException(
+            status_code=400, detail="Only JPEG, PNG, or WebP images are accepted."
+        )
 
-    # Validate file size (5MB max)
     contents = await file.read()
     if len(contents) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Image must be under 5MB")
+        raise HTTPException(status_code=400, detail="Image must be under 5 MB.")
 
-    repo = GuestRepository(db)
-    guest = repo.get_by_id(guest_id)
+    guest_repo = GuestRepository(db)
+    guest = guest_repo.get_by_id(guest_id)
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
     _verify_event_owner(db, guest.event_id, current_user.id)
 
-    # Save file
+    # Persist file to disk
     os.makedirs(UPLOAD_DIR, exist_ok=True)
-    ext = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "jpg"
+    ext = (
+        file.filename.rsplit(".", 1)[-1]
+        if file.filename and "." in file.filename
+        else "jpg"
+    )
     filename = f"{uuid.uuid4()}.{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
-
     with open(filepath, "wb") as f:
         f.write(contents)
 
-    return repo.update_image(guest, f"uploads/guests/{filename}")
+    # Update image_path on guest record immediately
+    storage_key = f"uploads/guests/{filename}"
+    guest = guest_repo.update_image(guest, storage_key)
+
+    # Run embedding pipeline synchronously (Celery is out of scope for Week 1)
+    from worker.tasks import process_guest_registration_photo
+
+    try:
+        process_guest_registration_photo(str(guest_id), filepath, db)
+    except (FaceQualityError, ValueError) as e:
+        # Quality gate rejected — surface the specific reason with 422
+        raise HTTPException(status_code=422, detail=str(e))
+
+    # Re-fetch to return updated embedding_status
+    db.refresh(guest)
+    return guest

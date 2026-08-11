@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from database.session import Base
 
@@ -22,5 +22,5 @@ class EventPhoto(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
-    event = relationship("Event", backref="photos")
+    event = relationship("Event", backref=backref("photos", cascade="all, delete-orphan"))
     uploader = relationship("User")

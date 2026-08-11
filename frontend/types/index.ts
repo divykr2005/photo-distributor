@@ -72,6 +72,13 @@ export interface GuestFormData {
   notes?: string;
 }
 
+export interface PaginatedGuests {
+  data: Guest[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 // ── Form data types ──
 
 export interface LoginFormData {

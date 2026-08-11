@@ -130,12 +130,18 @@ export default function DashboardPage() {
               Capture guest faces via webcam or upload photos. AI will generate
               embeddings for automatic photo matching.
             </p>
-            <button
-              className="mt-4 px-5 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-500 hover:to-blue-500 transition-all shadow-lg shadow-cyan-500/25 cursor-pointer disabled:opacity-50"
-              disabled
-            >
-              Coming Soon
-            </button>
+            <div className="flex items-center justify-center gap-3 mt-4">
+              <Link href="/guests/new" className="inline-block">
+                <button className="px-5 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-500 hover:to-blue-500 transition-all shadow-lg shadow-cyan-500/25 cursor-pointer">
+                  Register Guest
+                </button>
+              </Link>
+              <Link href="/guests" className="inline-block">
+                <button className="px-5 py-2.5 rounded-xl text-sm font-medium border border-slate-600 text-slate-300 hover:border-slate-500 hover:text-white transition-all cursor-pointer">
+                  View All
+                </button>
+              </Link>
+            </div>
           </div>
         </Card>
       </div>

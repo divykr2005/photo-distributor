@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from database.session import Base
 
@@ -33,7 +33,7 @@ class Guest(Base):
     notes = Column(Text, nullable=True)
     image_path = Column(String(500), nullable=True)
     embedding_status = Column(
-        Enum(EmbeddingStatus), default=EmbeddingStatus.PENDING, nullable=False
+        Enum(EmbeddingStatus, values_callable=lambda obj: [e.value for e in obj]), default=EmbeddingStatus.PENDING, nullable=False
     )
     consent_given_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
@@ -50,4 +50,4 @@ class Guest(Base):
         default=lambda: datetime.now(timezone.utc) + timedelta(days=15),
     )
 
-    event = relationship("Event", backref="guests")
+    event = relationship("Event", backref=backref("guests", cascade="all, delete-orphan"))

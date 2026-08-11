@@ -32,7 +32,7 @@ def upgrade() -> None:
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('location', sa.String(300), nullable=True),
         sa.Column('date', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('status', event_status, nullable=False, server_default='draft'),
+        sa.Column('status', postgresql.ENUM('draft', 'active', 'completed', 'cancelled', name='eventstatus', create_type=False), nullable=False, server_default='draft'),
         sa.Column('created_by', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),

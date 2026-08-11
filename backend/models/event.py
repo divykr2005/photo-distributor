@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from database.session import Base
 
@@ -25,7 +25,7 @@ class Event(Base):
     location = Column(String(300), nullable=True)
     date = Column(DateTime(timezone=True), nullable=False)
     status = Column(
-        Enum(EventStatus), default=EventStatus.DRAFT, nullable=False
+        Enum(EventStatus, values_callable=lambda obj: [e.value for e in obj]), default=EventStatus.DRAFT, nullable=False
     )
     created_by = Column(
         UUID(as_uuid=True),
@@ -43,4 +43,4 @@ class Event(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
-    creator = relationship("User", backref="events")
+    creator = relationship("User", backref=backref("events", cascade="all, delete-orphan"))

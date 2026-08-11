@@ -35,7 +35,7 @@ def upgrade() -> None:
         sa.Column('gender', sa.String(20), nullable=True),
         sa.Column('notes', sa.Text(), nullable=True),
         sa.Column('image_path', sa.String(500), nullable=True),
-        sa.Column('embedding_status', embedding_status, nullable=False, server_default='pending'),
+        sa.Column('embedding_status', postgresql.ENUM('pending', 'success', 'failed', name='embeddingstatus', create_type=False), nullable=False, server_default='pending'),
         sa.Column('consent_given_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
