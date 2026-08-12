@@ -52,18 +52,43 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # Run migrations then start the server
     command: >
       sh -c "cd /app &&
              alembic upgrade head &&
              uvicorn main:app --host 0.0.0.0 --port 8000"
     restart: unless-stopped
 
-  celery-worker:
+  worker-faces:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: photo_distr_celery
+    container_name: photo_distr_worker_faces
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      INSIGHTFACE_MODEL: buffalo_l
+      INSIGHTFACE_DET_SIZE: 640
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A core.celery_app.celery_app worker
+      --loglevel=info
+      --concurrency=4
+      -Q faces
+    restart: unless-stopped
+
+  worker-match:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: photo_distr_worker_match
     env_file: .env
     environment:
       POSTGRES_HOST: db
@@ -80,16 +105,45 @@ services:
       celery -A core.celery_app.celery_app worker
       --loglevel=info
       --concurrency=2
-      -Q main-queue
+      -Q match
     restart: unless-stopped
 
-  ai-service:
+  beat:
     build:
-      context: .
-      dockerfile: ai-service/Dockerfile
-    container_name: photo_distr_ai
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: photo_distr_beat
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A core.celery_app.celery_app beat
+      --loglevel=info
+    restart: unless-stopped
+
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: photo_distr_flower
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
     ports:
-      - "8001:8001"
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A core.celery_app.celery_app flower
+      --port=5555
     restart: unless-stopped
 
   frontend:

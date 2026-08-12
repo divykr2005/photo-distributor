@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from api.endpoints import auth, events, dashboard, guests, event_photos
+from api.endpoints import auth, events, dashboard, guests, event_photos, photos, uploads, matches, media, pipeline
 from core.config import settings
 from middleware.rate_limit import limiter
 
@@ -16,7 +16,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL],
+    allow_origins=["*"],  # Allow all origins for dev flexibility
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,6 +42,21 @@ app.include_router(
 app.include_router(
     event_photos.router, prefix=f"{settings.API_V1_STR}/events", tags=["event_photos"]
 )
+app.include_router(
+    photos.router, prefix=f"{settings.API_V1_STR}", tags=["photos"]
+)
+app.include_router(
+    uploads.router, prefix=f"{settings.API_V1_STR}", tags=["uploads"]
+)
+app.include_router(
+    matches.router, prefix=f"{settings.API_V1_STR}", tags=["matches"]
+)
+app.include_router(
+    media.router, prefix=f"{settings.API_V1_STR}", tags=["media"]
+)
+app.include_router(
+    pipeline.router, prefix=f"{settings.API_V1_STR}", tags=["pipeline"]
+)
 
 # Serve uploaded files
 import os
@@ -53,4 +68,3 @@ app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 @app.get("/")
 def root():
     return {"message": "Welcome to AI Event Photo Distribution API"}
-

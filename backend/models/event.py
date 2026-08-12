@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
 
@@ -42,5 +42,9 @@ class Event(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+    match_threshold = Column(Float, nullable=True)
+    review_floor = Column(Float, nullable=True)
+    match_margin = Column(Float, nullable=True)
 
     creator = relationship("User", backref=backref("events", cascade="all, delete-orphan"))
