@@ -8,6 +8,14 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "AI Event Photo Distribution"
     API_V1_STR: str = "/api/v1"
 
+    # App & Env fields
+    APP_NAME: str = "AI Event Photo Distribution"
+    ENV: str = "development"
+    PORT: int = 8000
+    JWT_EXPIRE_MINUTES: int = 30
+    FACE_MODEL: str = "buffalo_l"
+    SIMILARITY_THRESHOLD: float = 0.55
+
     # Database
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "db@123456"
@@ -37,7 +45,7 @@ class Settings(BaseSettings):
     # Frontend
     FRONTEND_URL: str = "http://localhost:3000"
 
-    model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
+    model_config = SettingsConfigDict(case_sensitive=True, env_file=".env", extra="ignore")
 
 
 settings = Settings()

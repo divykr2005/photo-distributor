@@ -1,8 +1,28 @@
-﻿# Import all models here so Alembic's autogenerate can discover them.
-from models.user import User  # noqa: F401
-from models.refresh_token import RefreshToken  # noqa: F401
-from models.event import Event  # noqa: F401
-from models.guest import Guest, EmbeddingStatus  # noqa: F401
-from models.face_embedding import FaceEmbedding  # noqa: F401
-from models.event_photo import EventPhoto  # noqa: F401
-from models.photo_match import PhotoMatch  # noqa: F401
+from models.user import User
+from models.refresh_token import RefreshToken
+from models.event import Event
+from models.guest import Guest
+from models.face_embedding import FaceEmbedding
+from models.event_photo import EventPhoto
+from models.photo_match import PhotoMatch
+
+from models.upload_batch import UploadBatch
+from models.photo import Photo
+from models.photo_face import PhotoFace
+from models.match import Match
+from models.match_run import MatchRun
+
+__all__ = [
+    "User",
+    "RefreshToken",
+    "Event",
+    "Guest",
+    "FaceEmbedding",
+    "EventPhoto",
+    "PhotoMatch",
+    "UploadBatch",
+    "Photo",
+    "PhotoFace",
+    "Match",
+    "MatchRun",
+]
