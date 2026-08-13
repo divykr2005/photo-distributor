@@ -3,8 +3,52 @@
 import React, { useState, useEffect } from "react";
 import { getEventPhotos, Photo } from "@/services/photos";
 import PhotoDetailModal from "./PhotoDetailModal";
+import { useAuthImage } from "@/hooks/useAuthImage";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+function PhotoGridItem({ photo, onClick }: { photo: Photo; onClick: () => void }) {
+  const { objectUrl } = useAuthImage(`/media/photos/${photo.id}/thumb`);
+
+  return (
+    <div
+      onClick={onClick}
+      className="group relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden cursor-pointer hover:border-indigo-500/50 transition duration-200 shadow-md hover:shadow-indigo-500/10"
+    >
+      <div className="aspect-square bg-slate-950 flex items-center justify-center overflow-hidden">
+        {objectUrl ? (
+          <img
+            src={objectUrl}
+            alt={photo.original_filename}
+            loading="lazy"
+            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+          />
+        ) : (
+          <div className="w-full h-full bg-slate-950 animate-pulse flex items-center justify-center text-slate-700 text-xs">
+            Loading...
+          </div>
+        )}
+      </div>
+
+      {/* Status Badge */}
+      <div className="absolute top-2 left-2 flex items-center gap-1 bg-slate-950/80 backdrop-blur-sm px-2 py-0.5 rounded-md text-[10px] border border-slate-800 font-mono">
+        <span
+          className={`w-1.5 h-1.5 rounded-full ${
+            photo.status === "processed"
+              ? "bg-emerald-400"
+              : photo.status === "failed"
+              ? "bg-rose-400"
+              : "bg-amber-400"
+          }`}
+        />
+        <span className="capitalize">{photo.status}</span>
+      </div>
+
+      {/* Faces count pill */}
+      <div className="absolute bottom-2 right-2 bg-slate-950/90 text-white text-[10px] px-2 py-0.5 rounded-md border border-slate-800 font-semibold">
+        👤 {photo.face_count}
+      </div>
+    </div>
+  );
+}
 
 export default function PhotoGrid({ eventId }: { eventId: string }) {
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -84,47 +128,13 @@ export default function PhotoGrid({ eventId }: { eventId: string }) {
 
       {/* Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {photos.map((photo) => {
-          const thumbUrl = `${API_URL}/media/photos/${photo.id}/thumb`;
-          return (
-            <div
-              key={photo.id}
-              onClick={() => setSelectedPhoto(photo)}
-              className="group relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden cursor-pointer hover:border-indigo-500/50 transition duration-200 shadow-md hover:shadow-indigo-500/10"
-            >
-              <div className="aspect-square bg-slate-950 flex items-center justify-center overflow-hidden">
-                <img
-                  src={thumbUrl}
-                  alt={photo.original_filename}
-                  loading="lazy"
-                  className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = "none";
-                  }}
-                />
-              </div>
-
-              {/* Status Badge */}
-              <div className="absolute top-2 left-2 flex items-center gap-1 bg-slate-950/80 backdrop-blur-sm px-2 py-0.5 rounded-md text-[10px] border border-slate-800 font-mono">
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    photo.status === "processed"
-                      ? "bg-emerald-400"
-                      : photo.status === "failed"
-                      ? "bg-rose-400"
-                      : "bg-amber-400"
-                  }`}
-                />
-                <span className="capitalize">{photo.status}</span>
-              </div>
-
-              {/* Faces count pill */}
-              <div className="absolute bottom-2 right-2 bg-slate-950/90 text-white text-[10px] px-2 py-0.5 rounded-md border border-slate-800 font-semibold">
-                👤 {photo.face_count}
-              </div>
-            </div>
-          );
-        })}
+        {photos.map((photo) => (
+          <PhotoGridItem
+            key={photo.id}
+            photo={photo}
+            onClick={() => setSelectedPhoto(photo)}
+          />
+        ))}
       </div>
 
       {/* Load More Button */}

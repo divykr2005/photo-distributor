@@ -46,7 +46,10 @@ def setup_test_db():
     # Now run migrations on the test database
     import alembic.config
     import alembic.command
-    alembic_cfg = alembic.config.Config("alembic.ini")
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    alembic_ini_path = os.path.join(backend_dir, "alembic.ini")
+    alembic_cfg = alembic.config.Config(alembic_ini_path)
+    alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "database", "migrations"))
     alembic_cfg.set_main_option("sqlalchemy.url", TEST_SQLALCHEMY_DATABASE_URI.replace('%', '%%'))
     alembic.command.upgrade(alembic_cfg, "head")
     

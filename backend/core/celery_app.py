@@ -27,6 +27,7 @@ celery_app.conf.update(
         "workers.faces.*": {"queue": "faces"},
         "workers.matching.*": {"queue": "match"},
         "workers.maintenance.*": {"queue": "maintenance"},
+        "workers.zip.*": {"queue": "maintenance"},
     },
     beat_schedule={
         "check-dirty-events-every-30s": {
@@ -37,6 +38,11 @@ celery_app.conf.update(
         "requeue-stale-photos-every-5m": {
             "task": "workers.maintenance.requeue_stale_photos",
             "schedule": 300.0,
+            "options": {"queue": "maintenance"},
+        },
+        "sweep-expired-zips-hourly": {
+            "task": "workers.zip.sweep_expired_zips",
+            "schedule": 3600.0,
             "options": {"queue": "maintenance"},
         },
     },

@@ -3,8 +3,32 @@
 import React, { use, useState, useEffect } from "react";
 import { getGuestPhotos, updateMatchAction, Match } from "@/services/matches";
 import { Photo } from "@/services/photos";
+import { useAuthImage } from "@/hooks/useAuthImage";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+function GuestPhotoItem({ photo }: { photo: Photo }) {
+  const { objectUrl } = useAuthImage(`/media/photos/${photo.id}/thumb`);
+
+  return (
+    <div className="group relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+      <div className="aspect-square bg-slate-950 flex items-center justify-center overflow-hidden">
+        {objectUrl ? (
+          <img
+            src={objectUrl}
+            alt={photo.original_filename}
+            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+          />
+        ) : (
+          <div className="w-full h-full bg-slate-950 animate-pulse flex items-center justify-center text-xs text-slate-700">
+            Loading...
+          </div>
+        )}
+      </div>
+      <div className="p-3 flex justify-between items-center bg-slate-900/90 border-t border-slate-800">
+        <span className="text-xs text-slate-400 truncate max-w-[120px]">{photo.original_filename}</span>
+      </div>
+    </div>
+  );
+}
 
 export default function GuestDetailPage({ params }: { params: Promise<{ guestId: string }> }) {
   const { guestId } = use(params);
@@ -43,26 +67,9 @@ export default function GuestDetailPage({ params }: { params: Promise<{ guestId:
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {photos.map((photo) => {
-            const thumbUrl = `${API_URL}/media/photos/${photo.id}/thumb`;
-            return (
-              <div
-                key={photo.id}
-                className="group relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg"
-              >
-                <div className="aspect-square bg-slate-950 flex items-center justify-center overflow-hidden">
-                  <img
-                    src={thumbUrl}
-                    alt={photo.original_filename}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                  />
-                </div>
-                <div className="p-3 flex justify-between items-center bg-slate-900/90 border-t border-slate-800">
-                  <span className="text-xs text-slate-400 truncate max-w-[120px]">{photo.original_filename}</span>
-                </div>
-              </div>
-            );
-          })}
+          {photos.map((photo) => (
+            <GuestPhotoItem key={photo.id} photo={photo} />
+          ))}
         </div>
       )}
     </div>
