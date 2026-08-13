@@ -54,7 +54,7 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
     const validStates: FileState[] = [];
 
     for (const f of selectedFiles) {
-      const ext = f.name.rsplit ? f.name.split(".").pop()?.toLowerCase() : "jpg";
+      const ext = f.name.split(".").pop()?.toLowerCase() || "jpg";
       if (!["jpg", "jpeg", "png", "heic", "heif", "webp"].includes(ext || "")) {
         continue;
       }

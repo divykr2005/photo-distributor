@@ -10,6 +10,8 @@ import Input from "@/components/ui/Input";
 import Spinner from "@/components/ui/Spinner";
 import Toast from "@/components/ui/Toast";
 
+import NotifyGuestsModal from "@/components/notifications/NotifyGuestsModal";
+
 const STATUS_OPTIONS = ["draft", "active", "completed", "cancelled"] as const;
 
 export default function EditEventPage() {
@@ -22,6 +24,7 @@ export default function EditEventPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -91,11 +94,20 @@ export default function EditEventPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Edit Event</h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Update event details
-        </p>
+      <div className="mb-8 flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Edit Event</h1>
+          <p className="text-sm text-slate-400 mt-1">
+            Update event details
+          </p>
+        </div>
+        <Button
+          type="button"
+          onClick={() => setIsNotifyModalOpen(true)}
+          className="flex items-center gap-2"
+        >
+          <span>📢</span> Notify Guests
+        </Button>
       </div>
 
       {error && (
@@ -174,6 +186,12 @@ export default function EditEventPage() {
           </div>
         </form>
       </Card>
+
+      <NotifyGuestsModal
+        eventId={eventId}
+        isOpen={isNotifyModalOpen}
+        onClose={() => setIsNotifyModalOpen(false)}
+      />
     </div>
   );
 }

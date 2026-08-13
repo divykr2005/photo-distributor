@@ -12,6 +12,12 @@ from models.photo_face import PhotoFace
 from models.match import Match
 from models.match_run import MatchRun
 
+# Week 3
+from models.guest_access_token import GuestAccessToken
+from models.selfie_search_log import SelfieSearchLog
+from models.notification_log import NotificationLog, NotificationChannel, NotificationStatus
+from models.zip_archive import ZipArchive, ZipStatus
+
 __all__ = [
     "User",
     "RefreshToken",
@@ -25,4 +31,13 @@ __all__ = [
     "PhotoFace",
     "Match",
     "MatchRun",
+    "GuestAccessToken",
+    "SelfieSearchLog",
+    "NotificationLog",
+    "NotificationChannel",
+    "NotificationStatus",
+    "ZipArchive",
+    "ZipStatus",
 ]
+
+

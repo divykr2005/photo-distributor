@@ -251,6 +251,8 @@ class MatchingService:
                         })
                     else:
                         new_match_id = uuid.uuid4()
+                        # D20: review-band matches get 'pending_review' so portal doesn't leak unreviewed guesses
+                        insert_status = "pending_review" if decision == "review" else "active"
                         new_match_mappings.append({
                             "id": new_match_id,
                             "event_id": event_id,
@@ -261,7 +263,7 @@ class MatchingService:
                             "similarity": round(top_1_score, 4),
                             "threshold_used": auto_confirm_thresh,
                             "decision": decision,
-                            "status": "active",
+                            "status": insert_status,
                             "second_guest_id": uuid.UUID(top_2_guest) if top_2_guest else None,
                             "second_similarity": round(top_2_score, 4) if top_2_guest else None,
                             "margin": round(margin, 4),
@@ -272,7 +274,7 @@ class MatchingService:
                             "created_at": now_ts,
                             "updated_at": now_ts,
                         })
-                        existing_matches_map[pf_uuid] = {"id": new_match_id, "status": "active", "reviewed_at": None}
+                        existing_matches_map[pf_uuid] = {"id": new_match_id, "status": insert_status, "reviewed_at": None}
 
                     chunk_processed_uuids.append(pf_uuid)
                     scanned_faces += 1
@@ -403,7 +405,9 @@ class MatchingService:
                     continue
 
             decision = "auto_confirmed" if score >= auto_confirm_thresh else "review"
-            
+            # D20: review-band matches get 'pending_review' so portal doesn't leak unreviewed guesses
+            insert_status = "pending_review" if decision == "review" else "active"
+
             if not existing_match:
                 match_record = Match(
                     id=uuid.uuid4(),
@@ -414,7 +418,7 @@ class MatchingService:
                     similarity=round(score, 4),
                     threshold_used=auto_confirm_thresh,
                     decision=decision,
-                    status="active",
+                    status=insert_status,
                     model_version="buffalo_l",
                 )
                 self.db.add(match_record)

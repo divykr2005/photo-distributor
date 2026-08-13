@@ -8,7 +8,7 @@ import {
   HiOutlinePlus,
   HiOutlinePencil,
   HiOutlineTrash,
-  HiOutlineMapPin,
+  HiOutlineLocationMarker,
 } from "react-icons/hi";
 import api from "@/lib/api";
 import type { Event } from "@/types";
@@ -169,7 +169,7 @@ export default function EventsPage() {
                   </span>
                   {event.location && (
                     <span className="flex items-center gap-1">
-                      <HiOutlineMapPin className="w-3.5 h-3.5" />
+                      <HiOutlineLocationMarker className="w-3.5 h-3.5" />
                       {event.location}
                     </span>
                   )}

@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
 
@@ -46,5 +46,12 @@ class Event(Base):
     match_threshold = Column(Float, nullable=True)
     review_floor = Column(Float, nullable=True)
     match_margin = Column(Float, nullable=True)
+
+    # Week 3: portal & selfie search config
+    portal_enabled = Column(Boolean, nullable=False, default=False)
+    portal_expires_at = Column(DateTime(timezone=True), nullable=True)
+    selfie_search_enabled = Column(Boolean, nullable=False, default=False)
+    timezone = Column(String(64), nullable=False, default="UTC")
+    selfie_threshold = Column(Float, nullable=True)  # per-event override (D23)
 
     creator = relationship("User", backref=backref("events", cascade="all, delete-orphan"))

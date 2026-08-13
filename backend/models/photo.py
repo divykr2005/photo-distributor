@@ -30,6 +30,7 @@ class Photo(Base):
 
     status = Column(String(50), nullable=False, default="pending", index=True)  # pending, queued, processing, processed, failed
     face_count = Column(Integer, nullable=False, default=0)
+    download_count = Column(Integer, nullable=False, default=0)
     processing_error = Column(Text, nullable=True)
     attempts = Column(Integer, nullable=False, default=0)
 

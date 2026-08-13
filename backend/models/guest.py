@@ -50,4 +50,10 @@ class Guest(Base):
         default=lambda: datetime.now(timezone.utc) + timedelta(days=15),
     )
 
+    # Week 3: notification fields
+    notify_opt_out_at = Column(DateTime(timezone=True), nullable=True)
+    last_notified_at = Column(DateTime(timezone=True), nullable=True)
+
     event = relationship("Event", backref=backref("guests", cascade="all, delete-orphan"))
+    zip_archives = relationship("ZipArchive", back_populates="guest", cascade="all, delete-orphan")
+

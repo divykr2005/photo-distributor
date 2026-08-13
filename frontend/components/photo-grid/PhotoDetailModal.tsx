@@ -1,17 +1,56 @@
 "use client";
 
 import React from "react";
-import { Photo } from "@/services/photos";
+import { Photo, PhotoFace } from "@/services/photos";
+import { useAuthImage } from "@/hooks/useAuthImage";
 
 interface Props {
   photo: Photo;
   onClose: () => void;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+function FaceCropItem({ face }: { face: PhotoFace }) {
+  const { objectUrl: cropUrl } = useAuthImage(`/media/faces/${face.id}`);
+
+  return (
+    <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-lg flex items-center gap-3">
+      {cropUrl ? (
+        <img
+          src={cropUrl}
+          alt="Crop"
+          className="w-14 h-14 object-cover rounded-md border border-slate-700"
+        />
+      ) : (
+        <div className="w-14 h-14 bg-slate-900 animate-pulse rounded-md border border-slate-700 flex items-center justify-center text-[9px] text-slate-600">
+          Loading...
+        </div>
+      )}
+      <div className="text-xs space-y-1">
+        <p className="font-semibold text-white">
+          Quality: <span className="text-emerald-400">{((face.quality_score || 0) * 100).toFixed(0)}%</span>
+        </p>
+        <p className="text-slate-400">
+          Detection: {(face.det_score * 100).toFixed(1)}%
+        </p>
+        {face.quality_flags && face.quality_flags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {face.quality_flags.map((flag) => (
+              <span
+                key={flag}
+                className="px-1.5 py-0.5 bg-rose-950/60 text-rose-300 border border-rose-800/40 rounded text-[9px]"
+              >
+                {flag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function PhotoDetailModal({ photo, onClose }: Props) {
-  const webUrl = `${API_URL}/media/photos/${photo.id}/web`;
+  const { objectUrl: webUrl } = useAuthImage(`/media/photos/${photo.id}/web`);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -32,11 +71,15 @@ export default function PhotoDetailModal({ photo, onClose }: Props) {
         <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Main Image with Normalized Bounding Box Overlays */}
           <div className="md:col-span-2 relative bg-black rounded-lg overflow-hidden flex items-center justify-center min-h-[350px]">
-            <img
-              src={webUrl}
-              alt={photo.original_filename}
-              className="w-full h-auto max-h-[60vh] object-contain"
-            />
+            {webUrl ? (
+              <img
+                src={webUrl}
+                alt={photo.original_filename}
+                className="w-full h-auto max-h-[60vh] object-contain"
+              />
+            ) : (
+              <div className="text-xs text-slate-500 animate-pulse">Loading photo...</div>
+            )}
             {/* Normalized BBox Overlays */}
             {photo.faces &&
               photo.faces.map((face) => (
@@ -66,41 +109,7 @@ export default function PhotoDetailModal({ photo, onClose }: Props) {
             </h4>
             <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
               {photo.faces && photo.faces.length > 0 ? (
-                photo.faces.map((face) => {
-                  const cropUrl = `${API_URL}/media/faces/${face.id}`;
-                  return (
-                    <div
-                      key={face.id}
-                      className="p-3 bg-slate-950/60 border border-slate-800 rounded-lg flex items-center gap-3"
-                    >
-                      <img
-                        src={cropUrl}
-                        alt="Crop"
-                        className="w-14 h-14 object-cover rounded-md border border-slate-700"
-                      />
-                      <div className="text-xs space-y-1">
-                        <p className="font-semibold text-white">
-                          Quality: <span className="text-emerald-400">{((face.quality_score || 0) * 100).toFixed(0)}%</span>
-                        </p>
-                        <p className="text-slate-400">
-                          Detection: {(face.det_score * 100).toFixed(1)}%
-                        </p>
-                        {face.quality_flags && face.quality_flags.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {face.quality_flags.map((flag) => (
-                              <span
-                                key={flag}
-                                className="px-1.5 py-0.5 bg-rose-950/60 text-rose-300 border border-rose-800/40 rounded text-[9px]"
-                              >
-                                {flag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
+                photo.faces.map((face) => <FaceCropItem key={face.id} face={face} />)
               ) : (
                 <p className="text-xs text-slate-500 italic">No faces detected in this photo.</p>
               )}

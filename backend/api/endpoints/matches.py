@@ -1,5 +1,5 @@
 from uuid import UUID
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -18,7 +18,7 @@ from schemas.photo import PhotoResponse
 router = APIRouter()
 
 
-def _verify_event_owner(db: Session, event_id: UUID, user_id: UUID) -> Event:
+def _verify_event_owner(db: Session, event_id: Any, user_id: Any) -> Event:
     event = (
         db.query(Event)
         .filter(Event.id == event_id, Event.created_by == user_id)
@@ -62,7 +62,7 @@ def update_match_action(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    match_rec = db.query(Match).filter(Match.id == match_id).first()
+    match_rec: Any = db.query(Match).filter(Match.id == match_id).first()
     if not match_rec:
         raise HTTPException(status_code=404, detail="Match not found")
 
@@ -90,20 +90,19 @@ def manual_assign_match(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    face = db.query(PhotoFace).filter(PhotoFace.id == req.photo_face_id).first()
+    face: Any = db.query(PhotoFace).filter(PhotoFace.id == req.photo_face_id).first()
     if not face:
         raise HTTPException(status_code=404, detail="Photo face not found")
 
     _verify_event_owner(db, face.event_id, current_user.id)
 
-    guest = db.query(Guest).filter(Guest.id == req.guest_id, Guest.event_id == face.event_id).first()
+    guest: Any = db.query(Guest).filter(Guest.id == req.guest_id, Guest.event_id == face.event_id).first()
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found in this event")
 
-    match_rec = db.query(Match).filter(Match.photo_face_id == req.photo_face_id).first()
+    match_rec: Any = db.query(Match).filter(Match.photo_face_id == req.photo_face_id).first()
     if not match_rec:
         match_rec = Match(
-            id=UUID(int=0),  # Will generate new UUID
             photo_face_id=req.photo_face_id,
             event_id=face.event_id,
             photo_id=face.photo_id,
@@ -129,20 +128,20 @@ def get_face_candidates(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    face = db.query(PhotoFace).filter(PhotoFace.id == photo_face_id).first()
+    face: Any = db.query(PhotoFace).filter(PhotoFace.id == photo_face_id).first()
     if not face:
         raise HTTPException(status_code=404, detail="Photo face not found")
 
     _verify_event_owner(db, face.event_id, current_user.id)
 
-    match_rec = db.query(Match).filter(Match.photo_face_id == photo_face_id).first()
+    match_rec: Any = db.query(Match).filter(Match.photo_face_id == photo_face_id).first()
     candidates = match_rec.top_candidates if match_rec and match_rec.top_candidates else []
 
     # Enrich candidates with guest names
     enriched = []
     for cand in candidates:
         g_id = cand.get("guest_id")
-        guest = db.query(Guest).filter(Guest.id == UUID(g_id)).first() if g_id else None
+        guest: Any = db.query(Guest).filter(Guest.id == UUID(g_id)).first() if g_id else None
         enriched.append({
             "guest_id": g_id,
             "guest_name": f"{guest.first_name} {guest.last_name}" if guest else "Unknown",
@@ -163,7 +162,7 @@ def get_guest_matched_photos(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    guest = db.query(Guest).filter(Guest.id == guest_id).first()
+    guest: Any = db.query(Guest).filter(Guest.id == guest_id).first()
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
 

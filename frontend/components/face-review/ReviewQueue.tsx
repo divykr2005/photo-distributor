@@ -2,13 +2,16 @@
 
 import React, { useState, useEffect } from "react";
 import { getEventMatches, updateMatchAction, manualAssignMatch, Match } from "@/services/matches";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+import { useAuthImage } from "@/hooks/useAuthImage";
 
 export default function ReviewQueue({ eventId }: { eventId: string }) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  const currentMatch = matches[currentIndex];
+  const faceCropPath = currentMatch ? `/media/faces/${currentMatch.photo_face_id}` : null;
+  const { objectUrl: cropUrl } = useAuthImage(faceCropPath);
 
   const fetchQueue = async () => {
     setLoading(true);
@@ -26,8 +29,6 @@ export default function ReviewQueue({ eventId }: { eventId: string }) {
   useEffect(() => {
     fetchQueue();
   }, [eventId]);
-
-  const currentMatch = matches[currentIndex];
 
   const handleConfirm = async () => {
     if (!currentMatch) return;
@@ -90,8 +91,6 @@ export default function ReviewQueue({ eventId }: { eventId: string }) {
     );
   }
 
-  const cropUrl = `${API_URL}/media/faces/${currentMatch.photo_face_id}`;
-
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-slate-100 max-w-3xl mx-auto space-y-6 shadow-2xl">
       <div className="flex justify-between items-center border-b border-slate-800 pb-4">
@@ -110,11 +109,17 @@ export default function ReviewQueue({ eventId }: { eventId: string }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
         {/* Detected Face Crop */}
         <div className="flex flex-col items-center bg-black/60 p-6 rounded-xl border border-slate-800">
-          <img
-            src={cropUrl}
-            alt="Face Crop"
-            className="w-48 h-48 object-cover rounded-xl border-2 border-slate-700 shadow-lg"
-          />
+          {cropUrl ? (
+            <img
+              src={cropUrl}
+              alt="Face Crop"
+              className="w-48 h-48 object-cover rounded-xl border-2 border-slate-700 shadow-lg"
+            />
+          ) : (
+            <div className="w-48 h-48 bg-slate-950 animate-pulse rounded-xl border-2 border-slate-700 flex items-center justify-center text-xs text-slate-600">
+              Loading face...
+            </div>
+          )}
           <div className="mt-4 text-center text-xs space-y-1">
             <p className="text-slate-400">Review Reason:</p>
             <span className="px-2 py-0.5 bg-amber-950 text-amber-300 border border-amber-800/50 rounded-full font-mono uppercase font-semibold">
