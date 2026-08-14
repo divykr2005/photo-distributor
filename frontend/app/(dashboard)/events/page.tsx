@@ -150,7 +150,10 @@ export default function EventsPage() {
                 </div>
 
                 {/* Title */}
-                <h3 className="text-base font-semibold text-white group-hover:text-violet-200 transition-colors">
+                <h3
+                  onClick={() => router.push(`/events/${event.id}/upload`)}
+                  className="text-base font-semibold text-white group-hover:text-violet-300 transition-colors cursor-pointer"
+                >
                   {event.title}
                 </h3>
 
@@ -162,7 +165,7 @@ export default function EventsPage() {
                 )}
 
                 {/* Meta */}
-                <div className="mt-auto pt-4 flex items-center gap-4 text-xs text-slate-500">
+                <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
                   <span className="flex items-center gap-1">
                     <HiOutlineCalendar className="w-3.5 h-3.5" />
                     {new Date(event.date).toLocaleDateString()}
@@ -173,6 +176,35 @@ export default function EventsPage() {
                       {event.location}
                     </span>
                   )}
+                </div>
+
+                {/* Quick Actions Bar */}
+                <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => router.push(`/events/${event.id}/upload`)}
+                    className="flex-1 text-xs py-1.5 px-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 font-medium"
+                  >
+                    <span>📤</span> Upload Photos
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => router.push(`/events/${event.id}/photos`)}
+                    className="text-xs py-1.5 px-2.5"
+                    title="View Photo Gallery"
+                  >
+                    <span>🖼️</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => router.push(`/guests?eventId=${event.id}`)}
+                    className="text-xs py-1.5 px-2.5"
+                    title="Manage Guests"
+                  >
+                    <span>👥</span>
+                  </Button>
                 </div>
               </div>
             </Card>

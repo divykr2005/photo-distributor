@@ -15,6 +15,7 @@ import { registerSchema, type RegisterSchema } from "@/lib/validators";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Toast from "@/components/ui/Toast";
+import GoogleLoginButton from "@/components/ui/GoogleLoginButton";
 
 export default function RegisterPage() {
   const { register: registerUser } = useAuth();
@@ -127,6 +128,16 @@ export default function RegisterPage() {
             Create Account
           </Button>
         </form>
+
+        <div className="mt-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-slate-700/50"></div>
+          <span className="text-xs text-slate-500 font-medium">OR</span>
+          <div className="h-px flex-1 bg-slate-700/50"></div>
+        </div>
+
+        <div className="mt-6">
+          <GoogleLoginButton />
+        </div>
 
         <p className="text-center text-sm text-slate-400 mt-6">
           Already have an account?{" "}

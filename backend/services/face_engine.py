@@ -201,3 +201,37 @@ class FaceEngine:
             })
 
         return web_bytes, thumb_bytes, web_w, web_h, exif_taken_at, detected_faces
+
+    def process_guest_image(self, image_path: str) -> Tuple[List[float], float]:
+        """
+        Process a guest registration photo using InsightFace.
+        Returns (embedding_list, quality_score).
+        Raises ValueError if quality checks fail.
+        """
+        img = cv2.imread(image_path)
+        if img is None:
+            raise ValueError("Could not read the image file.")
+            
+        faces = self.app.get(img)
+        if not faces:
+            raise ValueError("No face detected in the image.")
+        if len(faces) > 1:
+            raise ValueError(f"{len(faces)} faces detected. Please ensure only one person is visible.")
+            
+        face = faces[0]
+        det_score = float(face.det_score) if hasattr(face, "det_score") else 1.0
+        
+        # Check blur
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        if blur_score < LAPLACIAN_BLUR_FLOOR:
+            raise ValueError("Image is too blurry. Please retake the photo.")
+            
+        # Normalize embedding
+        emb = face.embedding.astype(np.float32)
+        norm = np.linalg.norm(emb)
+        if norm > 0:
+            emb = emb / norm
+            
+        overall_quality = round(float(det_score * min(1.0, blur_score / 100.0)), 4)
+        return emb.tolist(), overall_quality

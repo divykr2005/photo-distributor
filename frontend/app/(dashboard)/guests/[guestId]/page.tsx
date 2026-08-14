@@ -4,6 +4,7 @@ import React, { use, useState, useEffect } from "react";
 import { getGuestPhotos, updateMatchAction, Match } from "@/services/matches";
 import { Photo } from "@/services/photos";
 import { useAuthImage } from "@/hooks/useAuthImage";
+import api from "@/lib/api";
 
 function GuestPhotoItem({ photo }: { photo: Photo }) {
   const { objectUrl } = useAuthImage(`/media/photos/${photo.id}/thumb`);
@@ -51,11 +52,35 @@ export default function GuestDetailPage({ params }: { params: Promise<{ guestId:
     fetchMatchedPhotos();
   }, [guestId]);
 
+  const handleGenerateLink = async () => {
+    try {
+      // Find the guest's event_id first
+      const guestRes = await api.get(`/guests/${guestId}`);
+      const eventId = guestRes.data.event_id;
+      
+      const res = await api.post(`/events/${eventId}/guests/${guestId}/magic-link`);
+      const link = res.data.portal_url;
+      navigator.clipboard.writeText(link);
+      alert(`Magic Link generated and copied to clipboard!\n\n${link}`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to generate magic link. Make sure the event exists.");
+    }
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6 text-slate-100">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Guest Matched Photos</h1>
-        <p className="text-sm text-slate-400">Confirmed matched event photos for Guest ID: {guestId}</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Guest Matched Photos</h1>
+          <p className="text-sm text-slate-400">Confirmed matched event photos for Guest ID: {guestId}</p>
+        </div>
+        <button 
+          onClick={handleGenerateLink}
+          className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+        >
+          Generate & Copy Magic Link
+        </button>
       </div>
 
       {loading ? (

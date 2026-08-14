@@ -22,8 +22,9 @@ def process_guest_registration_photo(guest_id: str, photo_path: str, db: Session
         return
 
     try:
-        processor = FaceProcessor.get_instance()
-        embedding, quality_score = processor.process_image(photo_path)
+        from services.face_engine import FaceEngine
+        processor = FaceEngine.get_instance()
+        embedding, quality_score = processor.process_guest_image(photo_path)
 
         emb_repo.create(
             guest_id=guest.id,

@@ -10,11 +10,25 @@ import { loginSchema, type LoginSchema } from "@/lib/validators";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Toast from "@/components/ui/Toast";
+import GoogleLoginButton from "@/components/ui/GoogleLoginButton";
+
+import { useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam === "oauth_failed") {
+      setError("Google Login failed. Please check your OAuth credentials.");
+    } else if (errorParam === "oauth_missing_tokens") {
+      setError("Google Login failed. Missing tokens.");
+    }
+  }, [searchParams]);
 
   const {
     register,
@@ -96,6 +110,16 @@ export default function LoginPage() {
             Sign In
           </Button>
         </form>
+
+        <div className="mt-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-slate-700/50"></div>
+          <span className="text-xs text-slate-500 font-medium">OR</span>
+          <div className="h-px flex-1 bg-slate-700/50"></div>
+        </div>
+
+        <div className="mt-6">
+          <GoogleLoginButton />
+        </div>
 
         <p className="text-center text-sm text-slate-400 mt-6">
           Don&apos;t have an account?{" "}

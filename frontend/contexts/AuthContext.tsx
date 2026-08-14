@@ -19,6 +19,7 @@ interface AuthContextType {
   login: (data: LoginFormData) => Promise<void>;
   register: (data: RegisterFormData) => Promise<void>;
   logout: () => Promise<void>;
+  handleOAuthLogin: (accessToken: string, refreshToken: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -107,6 +108,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [router]);
 
+  const handleOAuthLogin = useCallback(
+    async (accessToken: string, refreshToken: string) => {
+      setTokens({ access_token: accessToken, refresh_token: refreshToken, token_type: "bearer" });
+      await fetchUser();
+      router.push("/dashboard");
+    },
+    [fetchUser, router]
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -116,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        handleOAuthLogin,
       }}
     >
       {children}

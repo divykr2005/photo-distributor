@@ -22,6 +22,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from starlette.middleware.sessions import SessionMiddleware
+app.add_middleware(SessionMiddleware, secret_key=settings.JWT_SECRET or "random_secret")
+
 from fastapi.responses import PlainTextResponse
 from middleware.rate_limit import limiter, custom_rate_limit_exceeded_handler
 from middleware.security_headers import SecurityHeadersMiddleware

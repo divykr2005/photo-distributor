@@ -75,6 +75,20 @@ class AuthService:
             )
         return self._create_token_pair(user)
 
+    def login_with_google(self, email: str, name: str) -> dict:
+        user = self.user_repo.get_user_by_email(email=email)
+        if not user:
+            # Create user without password
+            user = User(
+                email=email,
+                name=name,
+                password_hash=None
+            )
+            self.db.add(user)
+            self.db.commit()
+            self.db.refresh(user)
+        return self._create_token_pair(user)
+
     def refresh_access_token(self, refresh_token_str: str) -> dict:
         """Validate the refresh token, revoke it, and issue a new pair (rotation)."""
         token = (

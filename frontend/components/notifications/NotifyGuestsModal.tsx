@@ -293,17 +293,21 @@ export default function NotifyGuestsModal({
                   </div>
 
                   {/* Sample Message Card */}
-                  <Card gradient className="p-4 space-y-2">
-                    <div className="text-xs font-semibold text-violet-400 uppercase tracking-wider">
-                      Sample Rendered Message
-                    </div>
-                    <div className="text-sm font-semibold text-white">
-                      Subject: {preview.sample_preview.subject}
-                    </div>
-                    <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-xs font-mono text-slate-300 whitespace-pre-wrap leading-relaxed">
-                      {preview.sample_preview.text_content}
-                    </div>
-                  </Card>
+                  {preview.sample_preview && (
+                    <Card gradient className="p-4 space-y-2">
+                      <div className="text-xs font-semibold text-violet-400 uppercase tracking-wider">
+                        Sample Rendered Message
+                      </div>
+                      {preview.sample_preview.subject && (
+                        <div className="text-sm font-semibold text-white">
+                          Subject: {preview.sample_preview.subject}
+                        </div>
+                      )}
+                      <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-xs font-mono text-slate-300 whitespace-pre-wrap leading-relaxed">
+                        {preview.sample_preview.text_content || ""}
+                      </div>
+                    </Card>
+                  )}
 
                   {/* Test Dispatch Form */}
                   <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">

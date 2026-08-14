@@ -32,7 +32,8 @@ export async function getUploadBatch(batchId: string): Promise<UploadBatch> {
 export async function uploadSinglePhoto(
   eventId: string,
   file: File,
-  batchId?: string
+  batchId?: string,
+  onProgress?: (progress: number) => void
 ): Promise<{ photo_id: string; duplicate: boolean }> {
   const formData = new FormData();
   formData.append("file", file);
@@ -45,6 +46,12 @@ export async function uploadSinglePhoto(
     formData,
     {
       headers: { "Content-Type": "multipart/form-data" },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percentCompleted);
+        }
+      },
     }
   );
   return data;

@@ -94,20 +94,46 @@ export default function EditEventPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="mb-8 flex justify-between items-start">
+      <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Edit Event</h1>
+          <h1 className="text-2xl font-bold text-white">{event.title}</h1>
           <p className="text-sm text-slate-400 mt-1">
-            Update event details
+            Manage event settings, photos, and guest notifications
           </p>
         </div>
-        <Button
-          type="button"
-          onClick={() => setIsNotifyModalOpen(true)}
-          className="flex items-center gap-2"
-        >
-          <span>📢</span> Notify Guests
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            onClick={() => router.push(`/events/${eventId}/upload`)}
+            className="flex items-center gap-1.5 text-xs px-3.5 py-2"
+          >
+            <span>📤</span> Upload Photos
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => router.push(`/events/${eventId}/photos`)}
+            className="flex items-center gap-1.5 text-xs px-3.5 py-2"
+          >
+            <span>🖼️</span> Gallery
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => router.push(`/guests?eventId=${eventId}`)}
+            className="flex items-center gap-1.5 text-xs px-3.5 py-2"
+          >
+            <span>👥</span> Guests
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => setIsNotifyModalOpen(true)}
+            className="flex items-center gap-1.5 text-xs px-3.5 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500"
+          >
+            <span>📢</span> Notify Guests
+          </Button>
+        </div>
       </div>
 
       {error && (
