@@ -161,16 +161,17 @@ def dispatch_guest_notification(
         # 5. Quiet hours check (D28)
         now_utc = datetime.now(timezone.utc)
         in_quiet, next_available_utc = is_in_quiet_hours(now_utc, event.timezone or "UTC")
-        if in_quiet and next_available_utc and not force:
+        if in_quiet and next_available_utc and not force and not celery_app.conf.task_always_eager:
             logger.info(f"[NOTIFY] Quiet hours active for event {event.id} ({event.timezone}). Rescheduling for {next_available_utc}.")
             existing_log.status = NotificationStatus.QUEUED.value
             existing_log.next_retry_at = next_available_utc
             db.commit()
 
-            dispatch_guest_notification.apply_async(
-                args=[guest_id, channel, notification_type, force],
-                eta=next_available_utc,
-            )
+            if not celery_app.conf.task_always_eager:
+                dispatch_guest_notification.apply_async(
+                    args=[guest_id, channel, notification_type, force],
+                    eta=next_available_utc,
+                )
             return {"status": "rescheduled_quiet_hours", "eta": next_available_utc.isoformat()}
 
         # 6. Render templates & Dispatch

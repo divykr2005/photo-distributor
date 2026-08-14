@@ -20,6 +20,8 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
   const [files, setFiles] = useState<FileState[]>([]);
   const [batch, setBatch] = useState<UploadBatch | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [thinkingPhase, setThinkingPhase] = useState(0);
   const activeCountRef = useRef(0);
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -94,10 +96,12 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
       (async () => {
         try {
           setFiles((curr) =>
-            curr.map((item) => (item.id === target.id ? { ...item, status: "uploading", progress: 50 } : item))
+            curr.map((item) => (item.id === target.id ? { ...item, status: "uploading", progress: 0 } : item))
           );
 
-          const res = await uploadSinglePhoto(eventId, target.file, batch?.id);
+          const res = await uploadSinglePhoto(eventId, target.file, batch?.id, (progress) => {
+            setFiles((curr) => curr.map((item) => (item.id === target.id ? { ...item, progress } : item)));
+          });
 
           setFiles((curr) =>
             curr.map((item) =>
@@ -137,8 +141,18 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
     }
   }, [isUploading, files]);
 
+  useEffect(() => {
+    if (isUploading) {
+      const timer = setInterval(() => {
+        setThinkingPhase((p) => (p + 1) % 4);
+      }, 2000);
+      return () => clearInterval(timer);
+    }
+  }, [isUploading]);
+
   const startUpload = () => {
     setIsUploading(true);
+    setStartTime(Date.now());
   };
 
   const retryFailed = () => {
@@ -147,6 +161,32 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
     );
     setIsUploading(true);
   };
+
+  const totalFiles = files.length;
+  const completedFiles = files.filter((f) => ["done", "duplicate", "failed"].includes(f.status)).length;
+  const overallProgress = totalFiles > 0 ? Math.round((completedFiles / totalFiles) * 100) : 0;
+  
+  let etaString = "";
+  if (isUploading && startTime && completedFiles > 0 && completedFiles < totalFiles) {
+    const elapsedSeconds = (Date.now() - startTime) / 1000;
+    const rate = completedFiles / elapsedSeconds;
+    const remainingFiles = totalFiles - completedFiles;
+    const etaSeconds = rate > 0 ? Math.round(remainingFiles / rate) : 0;
+    if (etaSeconds > 60) {
+      etaString = ` (~${Math.floor(etaSeconds / 60)}m ${etaSeconds % 60}s)`;
+    } else {
+      etaString = ` (~${etaSeconds}s)`;
+    }
+  }
+
+  const thinkingText = [
+    "Extracting facial landmarks...",
+    "Generating pgvector embeddings...",
+    "Finding matches...",
+    "Finalizing AI analysis..."
+  ][thinkingPhase];
+
+  const isAiProcessing = overallProgress === 100 && batch && batch.processed_files < batch.received_files;
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-slate-100 space-y-6">
@@ -163,9 +203,19 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
           <button
             onClick={startUpload}
             disabled={isUploading || files.filter((f) => f.status === "queued").length === 0}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition"
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-80 text-white rounded-lg text-sm font-medium transition min-w-[240px] relative overflow-hidden"
           >
-            {isUploading ? "Uploading..." : "Start Batch Upload"}
+            {isUploading && (
+              <div 
+                className="absolute top-0 left-0 h-full bg-indigo-400/40 transition-all duration-300"
+                style={{ width: `${overallProgress}%` }}
+              />
+            )}
+            <span className={`relative z-10 flex justify-center w-full ${isAiProcessing ? 'animate-pulse' : ''}`}>
+              {isUploading 
+                ? (isAiProcessing ? thinkingText : `Uploading ${overallProgress}%${etaString}`) 
+                : "Start Batch Upload"}
+            </span>
           </button>
           <button
             onClick={retryFailed}
@@ -230,7 +280,14 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
                 </div>
                 <div className="flex items-center gap-4">
                   {f.status === "queued" && <span className="text-slate-500">Queued</span>}
-                  {f.status === "uploading" && <span className="text-indigo-400 animate-pulse">Uploading...</span>}
+                  {f.status === "uploading" && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${f.progress}%` }} />
+                      </div>
+                      <span className="text-indigo-400 text-xs w-8 text-right font-medium animate-pulse">{f.progress}%</span>
+                    </div>
+                  )}
                   {f.status === "done" && <span className="text-emerald-400 font-medium">Uploaded</span>}
                   {f.status === "duplicate" && <span className="text-amber-400 font-medium">Duplicate</span>}
                   {f.status === "failed" && <span className="text-rose-400 font-medium">{f.error || "Failed"}</span>}

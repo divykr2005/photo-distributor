@@ -8,6 +8,13 @@ celery_app = Celery(
     "photo_distributor",
     broker=redis_url,
     backend=redis_url,
+    include=[
+        "workers.faces",
+        "workers.matching",
+        "workers.maintenance",
+        "workers.zip_worker",
+        "workers.notifications",
+    ]
 )
 
 celery_app.conf.update(
@@ -48,5 +55,4 @@ celery_app.conf.update(
     },
 )
 
-# Auto-discover tasks in workers package
-celery_app.autodiscover_tasks(["workers"])
+

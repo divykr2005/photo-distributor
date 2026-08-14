@@ -15,6 +15,7 @@ from models.selfie_search_log import SelfieSearchLog
 from models.zip_archive import ZipArchive, ZipStatus
 from services.storage import get_storage_backend
 from services.visibility import visible_photo_ids
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,14 @@ def generate_guest_zip(zip_archive_id: str):
         final_zip_path = os.path.join(zip_dir, f"guest_{archive.guest_id}_{archive.id}.zip")
         temp_zip_path = f"{final_zip_path}.tmp"
 
-        with zipfile.ZipFile(temp_zip_path, "w", compression=zipfile.ZIP_STORED) as zf:
+        try:
+            import pyzipper  # type: ignore
+            zf = pyzipper.AESZipFile(temp_zip_path, "w", compression=pyzipper.ZIP_STORED, encryption=pyzipper.WZ_AES)
+            zf.setpassword(b"secret") # ponytail: hardcoded secret, pass from UI when needed
+        except ImportError:
+            zf = zipfile.ZipFile(temp_zip_path, "w", compression=zipfile.ZIP_STORED)
+
+        with zf:
             processed_bytes = 0
             for idx, (fpath, arc_name, fsize) in enumerate(file_items, start=1):
                 zf.write(fpath, arcname=arc_name)
@@ -160,8 +168,11 @@ def sweep_expired_zips():
         cutoff = now - timedelta(days=30)
         purged_logs = db.query(SelfieSearchLog).filter(SelfieSearchLog.created_at < cutoff).delete(synchronize_session=False)
 
+        bio_cutoff = now - timedelta(days=15)
+        db.execute(text("DELETE FROM face_embeddings WHERE created_at < :cutoff"), {"cutoff": bio_cutoff})
+
         db.commit()
-        logger.info(f"Zip sweep complete: deleted {deleted_files} files, purged {purged_logs} old selfie logs")
+        logger.info(f"Zip sweep complete: deleted {deleted_files} files, purged {purged_logs} logs, purged old biometrics")
     except Exception as e:
         logger.exception(f"Error sweeping expired ZIP archives: {e}")
         db.rollback()

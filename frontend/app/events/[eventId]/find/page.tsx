@@ -158,10 +158,6 @@ export default function SelfieSearchPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0e1a] text-white pb-12">
-      <head>
-        <title>Find Your Photos - Selfie Search</title>
-        <meta name="robots" content="noindex,nofollow" />
-      </head>
       {/* Header */}
       <header className="px-4 pt-8 pb-6 text-center space-y-2 max-w-2xl mx-auto">
         <p className="text-violet-400 text-xs font-semibold tracking-wider uppercase">

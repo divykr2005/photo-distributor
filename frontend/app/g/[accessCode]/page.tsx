@@ -342,10 +342,6 @@ export default function GuestPortalPage() {
   // ── Ready state: gallery ──
   return (
     <div className="min-h-screen flex flex-col pb-8">
-      <head>
-        <title>{info?.event_title ? `${info.event_title} - Photos` : "Guest Photos"}</title>
-        <meta name="robots" content="noindex,nofollow" />
-      </head>
       {info && <PortalHeader info={info} accessCode={accessCode} />}
 
       {/* Photo grid */}
