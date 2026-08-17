@@ -12,13 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from core.config import settings
 from database.session import Base
-import models.user  # import models here to register them with Base.metadata
-import models.refresh_token
-import models.event
-import models.guest
-import models.face_embedding
-import models.event_photo
-import models.photo_match
+import models
 
 config = context.config
 

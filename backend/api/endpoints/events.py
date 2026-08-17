@@ -68,3 +68,35 @@ def delete_event(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     repo.delete(event)
+
+
+@router.post("/{event_id}/purge", status_code=204)
+def purge_event_data(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    repo = EventRepository(db)
+    event = repo.get_by_id(event_id, current_user.id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    from models.photo import Photo
+    from models.guest import Guest
+    from models.upload_batch import UploadBatch
+    from services.storage.local import get_storage_backend
+
+    storage = get_storage_backend()
+    
+    # Storage cleanup for photos
+    photos = db.query(Photo).filter(Photo.event_id == event_id).all()
+    for p in photos:
+        for key in [p.storage_key, p.web_key, p.thumb_key]:
+            if key:
+                storage.delete(str(key))
+                
+    # DB Cleanup
+    db.query(Photo).filter(Photo.event_id == event_id).delete(synchronize_session=False)
+    db.query(Guest).filter(Guest.event_id == event_id).delete(synchronize_session=False)
+    db.query(UploadBatch).filter(UploadBatch.event_id == event_id).delete(synchronize_session=False)
+    db.commit()

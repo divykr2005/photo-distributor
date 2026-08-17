@@ -55,6 +55,8 @@ class PhotoResponse(BaseModel):
     created_at: datetime
     processed_at: Optional[datetime] = None
     updated_at: datetime
+    dup_cluster_id: Optional[UUID] = None
+    is_cluster_representative: Optional[bool] = None
     faces: List[PhotoFaceResponse] = []
 
     class Config:

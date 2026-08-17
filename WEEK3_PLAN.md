@@ -44,7 +44,7 @@ Week 4 (dedup, blur/smile ranking, S3, encrypted embeddings, data-deletion UI) i
 | Portal first paint | 50 thumbs @ 400px (~40 KB) | ≤ 2.0 s p95 on 4G | lazy-load below fold, 24 thumbs above |
 | Public media serve (thumb) | — | ≤ 120 ms p95 | `Cache-Control: private, max-age=3600`, ETag, 304 on revisit |
 | Selfie embed | 1 image, CPU | ≤ 800 ms p95 | resize to 640px long edge before detect |
-| Selfie match | 1 × 25k vectors | ≤ 50 ms | single NumPy matmul, cached matrix (see D22) |
+| Selfie match | 1 × 25k vectors | ≤ 50 ms | single NumPy matmul, cached matrix (see W3.D6) |
 | Selfie end-to-end | — | ≤ 3.0 s p95 | including upload on 4G |
 | Single photo download | ~4 MB original | starts streaming ≤ 300 ms | zero full-file buffering |
 | ZIP build | ~50 photos / ~200 MB | ≤ 60 s p95 | `ZIP_STORED`, disk-bound |
@@ -55,17 +55,17 @@ Week 4 (dedup, blur/smile ranking, S3, encrypted embeddings, data-deletion UI) i
 
 ---
 
-## [DECISION] New locks for Week 3 (D17–D30)
+## [DECISION] New locks for Week 3 (W3.D1–W3.D14)
 
 Locked. Implement exactly this. Anything outside this list → flag it.
 
-**D17 — Token format.** `secrets.token_urlsafe(16)` → 22 chars, 128 bits of entropy. *(This overrides the draft's "16-character token" — 16 chars of base62 is ~95 bits and, more importantly, an unhashed guessable-length token in a URL that gets forwarded around WhatsApp groups deserves the full 128.)* URL shape: `/g/{access_code}`.
+**W3.D1 — Token format.** `secrets.token_urlsafe(16)` → 22 chars, 128 bits of entropy. *(This overrides the draft's "16-character token" — 16 chars of base62 is ~95 bits and, more importantly, an unhashed guessable-length token in a URL that gets forwarded around WhatsApp groups deserves the full 128.)* URL shape: `/g/{access_code}`.
 
-**D18 — Tokens are hashed at rest.** Store `sha256(token)` in `token_hash` (UNIQUE, indexed). The plaintext is returned exactly once, at generation time, and never again — regeneration issues a new token. A database dump must not be a master key to every guest's photos. Comparison via indexed hash lookup, then `secrets.compare_digest` on the re-derived hash.
+**W3.D2 — Tokens are hashed at rest.** Store `sha256(token)` in `token_hash` (UNIQUE, indexed). The plaintext is returned exactly once, at generation time, and never again — regeneration issues a new token. A database dump must not be a master key to every guest's photos. Comparison via indexed hash lookup, then `secrets.compare_digest` on the re-derived hash.
 
-**D19 — Token lifecycle.** Default `expires_at = event.date + 90 days`, per-event overridable. Fields: `revoked_at`, `last_accessed_at`, `access_count`. Rotation revokes the old token. Response codes: invalid/revoked → `404` with a generic body; expired → `410` with a "link expired, contact your organizer" body. Never leak whether a token *ever* existed.
+**W3.D3 — Token lifecycle.** Default `expires_at = event.date + 90 days`, per-event overridable. Fields: `revoked_at`, `last_accessed_at`, `access_count`. Rotation revokes the old token. Response codes: invalid/revoked → `404` with a generic body; expired → `410` with a "link expired, contact your organizer" body. Never leak whether a token *ever* existed.
 
-**D20 — Visibility predicate is defined once, in one place.** A single SQL/ORM helper `visible_matches(guest_id)` used by portal, download, ZIP, and counts alike:
+**W3.D4 — Visibility predicate is defined once, in one place.** A single SQL/ORM helper `visible_matches(guest_id)` used by portal, download, ZIP, and counts alike:
 
 ```sql
 WHERE m.guest_id = :guest_id
@@ -75,23 +75,23 @@ WHERE m.guest_id = :guest_id
 > [!NOTE]
 > **[FIX] to Week 2:** this only works if review-band matches are *not* `active` on insert. Add `pending_review` to `Matches.status` and make `decision='review'` rows insert as `status='pending_review'`; organizer confirmation flips them to `'active'`. Ship this as a Week 2 data-model amendment migration on Day 15 before anything else. Without it, the portal leaks unreviewed guesses to guests — the single worst failure mode in this product.
 
-**D21 — Public media serving.** All guest-facing image bytes go through `GET /api/v1/public/media/{photo_id}/{variant}?token=...`, `variant ∈ {thumb, web, original}`. Every request re-checks the visibility predicate. No storage keys, filesystem paths, or `/static/` mounts exposed publicly. `original` is only reachable via the download route (D24). Document `X-Accel-Redirect` / `X-Sendfile` as the production offload path in `docs/scaling.md`, but ship the Python streaming version this week.
+**W3.D5 — Public media serving.** All guest-facing image bytes go through `GET /api/v1/public/media/{photo_id}/{variant}?token=...`, `variant ∈ {thumb, web, original}`. Every request re-checks the visibility predicate. No storage keys, filesystem paths, or `/static/` mounts exposed publicly. `original` is only reachable via the download route (W3.D8). Document `X-Accel-Redirect` / `X-Sendfile` as the production offload path in `docs/scaling.md`, but ship the Python streaming version this week.
 
-**D22 — Selfie search is ephemeral and never enrolls.** The uploaded selfie is processed in memory, embedded, matched, and discarded — no `image_path`, no `Guests` row, no `FaceEmbeddings` row. Persist only a `SelfieSearchLogs` row (IP hash, event, result count, latency, timestamp) for abuse forensics. The event's face matrix is cached in the worker/API process (`{event_id: (ids, np.ndarray)}`, invalidated on new-photo ingest, TTL 10 min) so the 51 MB load isn't paid per request.
+**W3.D6 — Selfie search is ephemeral and never enrolls.** The uploaded selfie is processed in memory, embedded, matched, and discarded — no `image_path`, no `Guests` row, no `FaceEmbeddings` row. Persist only a `SelfieSearchLogs` row (IP hash, event, result count, latency, timestamp) for abuse forensics. The event's face matrix is cached in the worker/API process (`{event_id: (ids, np.ndarray)}`, invalidated on new-photo ingest, TTL 10 min) so the 51 MB load isn't paid per request.
 
-**D23 — Selfie search uses a stricter threshold than organizer matching.** `selfie_auto_confirm = auto_confirm + 0.03` (default 0.45), margin rule from D12 still applies, and results are capped at the top 200 photos. Rationale: an organizer-side false positive costs a click in the review queue; a selfie-search false positive hands a stranger someone else's photos. Asymmetric cost → asymmetric threshold. Record the value used in `SelfieSearchLogs`.
+**W3.D7 — Selfie search uses a stricter threshold than organizer matching.** `selfie_auto_confirm = auto_confirm + 0.03` (default 0.45), margin rule from D12 still applies, and results are capped at the top 200 photos. Rationale: an organizer-side false positive costs a click in the review queue; a selfie-search false positive hands a stranger someone else's photos. Asymmetric cost → asymmetric threshold. Record the value used in `SelfieSearchLogs`.
 
-**D24 — Selfie results are authorized by a short-lived session token, not by photo ID.** On a successful search, mint `search_session_id` (Redis, TTL 15 min) holding the exact set of matched `photo_id`s. Downloads from a selfie search require that session token and are checked against that stored set. Never trust a `photo_id` the client hands back.
+**W3.D8 — Selfie results are authorized by a short-lived session token, not by photo ID.** On a successful search, mint `search_session_id` (Redis, TTL 15 min) holding the exact set of matched `photo_id`s. Downloads from a selfie search require that session token and are checked against that stored set. Never trust a `photo_id` the client hands back.
 
-**D25 — ZIP jobs are cached, capped, and swept.** `generate_guest_zip` is idempotent on `(guest_id, match_set_hash)` where `match_set_hash = sha256(sorted(photo_ids))`; if a completed, unexpired archive with that hash exists, return it instantly. `ZIP_STORED`. Hard caps: 1,000 photos and 8 GB per archive, one in-flight job per guest. TTL 48 h, Celery beat sweep hourly, plus a disk-watermark guard that refuses new jobs above 80% and returns `503` with a retry hint.
+**W3.D9 — ZIP jobs are cached, capped, and swept.** `generate_guest_zip` is idempotent on `(guest_id, match_set_hash)` where `match_set_hash = sha256(sorted(photo_ids))`; if a completed, unexpired archive with that hash exists, return it instantly. `ZIP_STORED`. Hard caps: 1,000 photos and 8 GB per archive, one in-flight job per guest. TTL 48 h, Celery beat sweep hourly, plus a disk-watermark guard that refuses new jobs above 80% and returns `503` with a retry hint.
 
-**D26 — Notifications send links, never media.** One `Notifier` protocol with adapters: `console` (dev default), `smtp`, `webhook`, `twilio_whatsapp`, `twilio_sms`. Channel selection is env/config-driven per event. WhatsApp sits behind a feature flag and is **not** on the Day 21 critical path (see the flagged item on template approval below).
+**W3.D10 — Notifications send links, never media.** One `Notifier` protocol with adapters: `console` (dev default), `smtp`, `webhook`, `twilio_whatsapp`, `twilio_sms`. Channel selection is env/config-driven per event. WhatsApp sits behind a feature flag and is **not** on the Day 21 critical path (see the flagged item on template approval below).
 
-**D27 — Notification idempotency.** `UNIQUE (guest_id, channel, notification_type, dedupe_key)` on `NotificationLogs`, where `dedupe_key` defaults to the guest's current `token_hash` prefix + match-count bucket. Statuses: `queued | sending | sent | delivered | failed | skipped_opt_out | skipped_duplicate`. Retries: max 5, exponential backoff `60s × 2^n` with jitter, only on transient/5xx/429 provider errors — never on hard rejects (invalid number, unsubscribed).
+**W3.D11 — Notification idempotency.** `UNIQUE (guest_id, channel, notification_type, dedupe_key)` on `NotificationLogs`, where `dedupe_key` defaults to the guest's current `token_hash` prefix + match-count bucket. Statuses: `queued | sending | sent | delivered | failed | skipped_opt_out | skipped_duplicate`. Retries: max 5, exponential backoff `60s × 2^n` with jitter, only on transient/5xx/429 provider errors — never on hard rejects (invalid number, unsubscribed).
 
-**D28 — Opt-out and quiet hours are honoured at dispatch time, not at queue time.** `Guests.notify_opt_out_at` (nullable). Quiet hours 21:00–08:00 in the event's local timezone → task re-scheduled with an ETA, not dropped. Every message carries an opt-out instruction.
+**W3.D12 — Opt-out and quiet hours are honoured at dispatch time, not at queue time.** `Guests.notify_opt_out_at` (nullable). Quiet hours 21:00–08:00 in the event's local timezone → task re-scheduled with an ETA, not dropped. Every message carries an opt-out instruction.
 
-**D29 — Rate limits (Redis sliding window, keyed by IP and by token).**
+**W3.D13 — Rate limits (Redis sliding window, keyed by IP and by token).**
 
 | Route | Limit |
 |---|---|
@@ -103,7 +103,7 @@ WHERE m.guest_id = :guest_id
 
 All return `429` with `Retry-After`. Limits live in config, not scattered decorators.
 
-**D30 — Public responses use a dedicated serializer.** A `PublicGuestSchema` that whitelists: first name, event title/date, photo count, photo IDs + variant URLs. Never: embeddings, phone, email, notes, other guests, internal IDs of matches, similarity scores, storage keys. Add a test that asserts the string `"embedding"` and the guest's phone number appear in **zero** public responses.
+**W3.D14 — Public responses use a dedicated serializer.** A `PublicGuestSchema` that whitelists: first name, event title/date, photo count, photo IDs + variant URLs. Never: embeddings, phone, email, notes, other guests, internal IDs of matches, similarity scores, storage keys. Add a test that asserts the string `"embedding"` and the guest's phone number appear in **zero** public responses.
 
 ---
 
@@ -130,7 +130,7 @@ updated_at              next_retry_at           finished_at             created_
                         updated_at
 ```
 
-**Amendments to existing tables.** `Guests`: `notify_opt_out_at`, `last_notified_at`. `Matches.status`: add `pending_review` (D20). `Events`: `portal_enabled`, `portal_expires_at`, `selfie_search_enabled`, `timezone`, `selfie_threshold` (nullable override).
+**Amendments to existing tables.** `Guests`: `notify_opt_out_at`, `last_notified_at`. `Matches.status`: add `pending_review` (W3.D4). `Events`: `portal_enabled`, `portal_expires_at`, `selfie_search_enabled`, `timezone`, `selfie_threshold` (nullable override).
 
 **Indexes.** `UNIQUE (token_hash)`; `INDEX (guest_id, revoked_at)` on GuestAccessTokens. `UNIQUE (guest_id, channel, notification_type, dedupe_key)`; `INDEX (status, next_retry_at)` on NotificationLogs. `INDEX (guest_id, status, expires_at)` on ZipArchives. `INDEX (event_id, created_at)` and `INDEX (ip_hash, created_at)` on SelfieSearchLogs.
 
@@ -176,10 +176,10 @@ updated_at              next_retry_at           finished_at             created_
 
 **Today's task**
 
-- Event face-matrix cache (D22) with invalidation hook on photo-ingest completion.
+- Event face-matrix cache (W3.D6) with invalidation hook on photo-ingest completion.
 - `POST /api/v1/public/events/{event_id}/search-selfie` — multipart, ≤ 10 MB, JPEG/PNG/HEIC, streamed, in-memory only.
 - Reuse Week 1's quality gate verbatim for the selfie: no face / multiple faces / blurry / too dark / too small / too rotated → specific actionable message ("we found two faces — please upload a photo of just yourself").
-- Match: top-1 with margin (D12), threshold D23, cap 200, sorted by similarity desc; return photo IDs + thumb/web URLs bound to a fresh `search_session_id`.
+- Match: top-1 with margin (D12), threshold W3.D7, cap 200, sorted by similarity desc; return photo IDs + thumb/web URLs bound to a fresh `search_session_id`.
 - `/events/[eventId]/find` page: event branding, consent checkbox with clear biometric-use copy (see flagged item), camera capture + upload fallback (reuse the Week 1 camera module), live preview, per-reason error rendering, result grid reusing the Day 16 gallery components, "no matches" empty state with a retry hint.
 - Honour `Events.selfie_search_enabled`; disabled → 404 the page.
 
@@ -192,7 +192,7 @@ updated_at              next_retry_at           finished_at             created_
 **Today's task**
 
 - `GET /api/v1/public/photos/{photo_id}/download?token={access_code}` — verifies via `visible_matches()`, streams the **original** in 1 MB chunks, `Content-Disposition: attachment; filename="{event-slug}-{photo-id}.jpg"` with a sanitized filename, correct `Content-Length` and `Content-Type`, `Accept-Ranges: bytes` and range support so mobile resume works.
-- Same route accepts `?session={search_session_id}` for selfie-search users, validated against the Redis set (D24).
+- Same route accepts `?session={search_session_id}` for selfie-search users, validated against the Redis set (W3.D8).
 - Increment a per-photo download counter (cheap `UPDATE`, or Redis counter flushed by beat — your call, document it).
 - Portal UI: download button per photo, in the lightbox, plus a "download all" button that is wired to Day 20's endpoint and disabled with a tooltip until then.
 - **Negative tests are the deliverable here, not the happy path:** photo from another event, photo matched to a different guest, photo whose match was `rejected_by_organizer`, photo in `pending_review`, expired token, revoked token, expired search session — all `403`/`404`, all covered by an automated test.
@@ -206,7 +206,7 @@ updated_at              next_retry_at           finished_at             created_
 **Today's task**
 
 - `NotificationLogs` migration + `Notifier` protocol + adapters: `console`, `smtp`, `webhook`, `twilio_sms`, `twilio_whatsapp` (flag-gated).
-- Celery task `dispatch_guest_notification(guest_id, channel, notification_type)` — idempotency check, opt-out check, quiet-hours ETA reschedule, provider call, log transition, retry policy per D27.
+- Celery task `dispatch_guest_notification(guest_id, channel, notification_type)` — idempotency check, opt-out check, quiet-hours ETA reschedule, provider call, log transition, retry policy per W3.D11.
 - Batch task `dispatch_event_notifications(event_id, channel)` — chunked, provider-rate-limited (default 10 msg/s, config), skips guests with zero visible photos, skips already-sent.
 - Templates: email (HTML + text) and message body — event name, photo count, magic link, opt-out line. No images attached, no photos inline.
 - Organizer UI: "Notify guests" on the event page → channel picker, dry-run preview showing recipient count and one rendered message, confirm dialog, then a live send-status table (queued / sent / failed / skipped) polling every 2 s.
@@ -222,7 +222,7 @@ updated_at              next_retry_at           finished_at             created_
 
 - `ZipArchives` migration; `POST /api/v1/public/guest/{token}/zip` → returns existing archive or enqueues; `GET /api/v1/public/guest/{token}/zip/{job_id}` → status polling (2 s, same convention as Week 2's D16).
 - `generate_guest_zip(guest_id)`: resolve `visible_matches()` → `match_set_hash` → cache hit check → stream photos into a temp file with `zipfile.ZipFile(..., ZIP_STORED)` → atomic rename → set `expires_at = now + 48h` → update row. Update `photo_count`/`total_bytes` progressively so the UI can show real progress.
-- Caps and guards per D25, including the disk watermark.
+- Caps and guards per W3.D9, including the disk watermark.
 - `GET /api/v1/public/guest/{token}/zip/{job_id}/download` — streamed, range-capable, sanitized filename.
 - Beat task `sweep_expired_zips` hourly; also purges `SelfieSearchLogs` older than 30 days.
 - Portal UI: "Download all (N photos, ~X MB)" → progress bar → download button, with a "this may take a minute" message and a resumable poll that survives a page refresh (store `job_id` in `sessionStorage`).
@@ -235,7 +235,7 @@ updated_at              next_retry_at           finished_at             created_
 
 **Today's task**
 
-- Redis sliding-window limiter applied per D29; verify with a loop script that the 6th selfie in a minute gets `429 + Retry-After`.
+- Redis sliding-window limiter applied per W3.D13; verify with a loop script that the 6th selfie in a minute gets `429 + Retry-After`.
 - Enumeration pass: constant-time comparisons, uniform error bodies, uniform response timing on invalid vs valid tokens (add a small fixed delay on the failure path if timing differs measurably), no guest names in error text.
 - Security headers on public routes: `X-Content-Type-Options`, `Referrer-Policy: no-referrer`, restrictive CSP, `X-Frame-Options: DENY`, and `<meta name="robots" content="noindex,nofollow">` plus `robots.txt` disallow on `/g/*` and `/events/*/find` — magic links must not end up in a search index.
 - Integration test suite: full guest journey (link → view → download → ZIP), full walk-in journey (selfie → results → download), plus every negative case in the checklist below.

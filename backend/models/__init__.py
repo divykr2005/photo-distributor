@@ -11,6 +11,7 @@ from models.photo import Photo
 from models.photo_face import PhotoFace
 from models.match import Match
 from models.match_run import MatchRun
+from models.photo_cluster import PhotoCluster
 
 # Week 3
 from models.guest_access_token import GuestAccessToken
@@ -31,6 +32,7 @@ __all__ = [
     "PhotoFace",
     "Match",
     "MatchRun",
+    "PhotoCluster",
     "GuestAccessToken",
     "SelfieSearchLog",
     "NotificationLog",

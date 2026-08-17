@@ -52,7 +52,7 @@ async def upload_event_photos(
         # Create DB record
         event_photo = photo_repo.create(
             event_id=event_id,
-            uploaded_by=current_user.id,
+            uploaded_by=current_user.id,  # type: ignore
             file_path="",  # updated after save
             file_size=len(content),
         )
@@ -65,7 +65,7 @@ async def upload_event_photos(
             buffer.write(content)
 
         # Update file path
-        event_photo.file_path = str(file_path).replace("\\", "/")
+        event_photo.file_path = str(file_path).replace("\\", "/")  # type: ignore
         db.commit()
 
         # Dispatch to Celery for face matching
@@ -149,7 +149,7 @@ def get_event_photo(
             {
                 "guest_id": str(m.guest_id),
                 "guest_name": f"{m.guest.first_name} {m.guest.last_name}" if m.guest else "Unknown",
-                "confidence": round(m.confidence, 4),
+                "confidence": round(m.confidence, 4),  # type: ignore
                 "face_index": m.face_index,
                 "is_solo": m.is_solo,
             }
@@ -186,10 +186,31 @@ def get_photo_matches(
                 "guest_id": str(m.guest_id),
                 "guest_name": f"{m.guest.first_name} {m.guest.last_name}" if m.guest else "Unknown",
                 "guest_image": m.guest.image_path if m.guest else None,
-                "confidence": round(m.confidence, 4),
+                "confidence": round(m.confidence, 4),  # type: ignore
                 "face_index": m.face_index,
                 "is_solo": m.is_solo,
             }
             for m in matches
         ],
     }
+
+@router.delete("/{event_id}/photos")
+def delete_bulk_photos(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete all photos for an event."""
+    event = db.query(Event).filter(Event.id == event_id, Event.created_by == current_user.id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    import shutil
+    upload_dir = Path("uploads/events") / str(event_id)
+    if upload_dir.exists():
+        shutil.rmtree(upload_dir)
+
+    db.query(EventPhoto).filter(EventPhoto.event_id == event_id).delete(synchronize_session=False)
+    db.commit()
+    
+    return {"message": "All photos deleted successfully"}

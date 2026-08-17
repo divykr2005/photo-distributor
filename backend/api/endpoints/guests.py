@@ -20,7 +20,7 @@ UPLOAD_DIR = os.path.join(
 )
 
 
-def _verify_event_owner(db: Session, event_id: UUID, user_id: UUID) -> Event:
+def _verify_event_owner(db: Session, event_id, user_id) -> Event:
     """Ensure the event exists and belongs to the current user."""
     event = (
         db.query(Event)
@@ -55,7 +55,7 @@ def list_guests(
     repo = GuestRepository(db)
     skip = (page - 1) * page_size
     guests, total = repo.search(
-        current_user.id, query=search, event_id=event_id, skip=skip, limit=page_size
+        current_user.id, query=search, event_id=event_id, skip=skip, limit=page_size  # type: ignore
     )
     return {"data": guests, "total": total, "page": page, "page_size": page_size}
 

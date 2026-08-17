@@ -75,12 +75,29 @@ export default function GuestDetailPage({ params }: { params: Promise<{ guestId:
           <h1 className="text-2xl font-bold text-white">Guest Matched Photos</h1>
           <p className="text-sm text-slate-400">Confirmed matched event photos for Guest ID: {guestId}</p>
         </div>
-        <button 
-          onClick={handleGenerateLink}
-          className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-        >
-          Generate & Copy Magic Link
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={async () => {
+              if (window.confirm("Are you sure you want to delete this guest? This will delete their registration photo and embeddings.")) {
+                try {
+                  await api.delete(`/guests/${guestId}`);
+                  window.location.href = "/guests";
+                } catch (err) {
+                  alert("Failed to delete guest");
+                }
+              }
+            }}
+            className="bg-red-900/50 border border-red-800 text-red-200 hover:bg-red-900/70 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+          >
+            Delete Guest
+          </button>
+          <button 
+            onClick={handleGenerateLink}
+            className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+          >
+            Generate & Copy Magic Link
+          </button>
+        </div>
       </div>
 
       {loading ? (

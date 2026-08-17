@@ -25,6 +25,22 @@ export default function EditEventPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
+  const [pipelineStatus, setPipelineStatus] = useState<any>(null);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    const fetchStatus = async () => {
+      try {
+        const { data } = await api.get(`/events/${eventId}/pipeline-status`);
+        setPipelineStatus(data);
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchStatus();
+    interval = setInterval(fetchStatus, 5000);
+    return () => clearInterval(interval);
+  }, [eventId]);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -100,6 +116,24 @@ export default function EditEventPage() {
           <p className="text-sm text-slate-400 mt-1">
             Manage event settings, photos, and guest notifications
           </p>
+          {pipelineStatus && pipelineStatus.pending > 0 && (
+            <div className="mt-4 p-4 bg-indigo-900/30 border border-indigo-800 rounded-xl">
+              <div className="flex justify-between text-xs font-semibold text-indigo-200 mb-2">
+                <span>Processing Pipeline</span>
+                <span>{pipelineStatus.processed} / {pipelineStatus.total} photos</span>
+              </div>
+              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div 
+                  className="bg-indigo-500 h-full transition-all duration-500 ease-out"
+                  style={{ width: `${Math.max(5, (pipelineStatus.processed / (pipelineStatus.total || 1)) * 100)}%` }}
+                />
+              </div>
+              <div className="text-[10px] text-slate-400 mt-2 flex justify-between">
+                <span>{pipelineStatus.pending} pending</span>
+                {pipelineStatus.failed > 0 && <span className="text-rose-400">{pipelineStatus.failed} failed</span>}
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -124,6 +158,29 @@ export default function EditEventPage() {
             className="flex items-center gap-1.5 text-xs px-3.5 py-2"
           >
             <span>👥</span> Guests
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={async () => {
+              try {
+                await api.post(`/events/${eventId}/clusters/run`);
+                setSuccess("Clustering started in background");
+              } catch {
+                setError("Failed to start clustering");
+              }
+            }}
+            className="flex items-center gap-1.5 text-xs px-3.5 py-2"
+          >
+            <span>🔄</span> Group Duplicates
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => router.push(`/events/${eventId}/clusters`)}
+            className="flex items-center gap-1.5 text-xs px-3.5 py-2"
+          >
+            <span>👯</span> Review Clusters
           </Button>
           <Button
             type="button"
@@ -208,6 +265,40 @@ export default function EditEventPage() {
               onClick={() => router.push("/events")}
             >
               Back
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="bg-orange-900/50 text-orange-200 border-orange-800 hover:bg-orange-900/70 hover:text-white"
+              onClick={async () => {
+                if (window.confirm("Are you sure you want to delete bulk photos for this event?")) {
+                  try {
+                    await api.delete(`/events/${eventId}/photos`);
+                    setSuccess("Bulk photos deleted successfully");
+                  } catch {
+                    setError("Failed to delete bulk photos");
+                  }
+                }
+              }}
+            >
+              Delete Bulk
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="bg-red-900/50 text-red-200 border-red-800 hover:bg-red-900/70 hover:text-white"
+              onClick={async () => {
+                if (window.confirm("are you sure to delete all including guests bulk photos face embedding registrations and all")) {
+                  try {
+                    await api.post(`/events/${eventId}/purge`);
+                    setSuccess("All event data purged successfully");
+                  } catch {
+                    setError("Failed to purge event data");
+                  }
+                }
+              }}
+            >
+              Delete All Data
             </Button>
           </div>
         </form>

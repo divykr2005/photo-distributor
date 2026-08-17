@@ -186,7 +186,10 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
     "Finalizing AI analysis..."
   ][thinkingPhase];
 
-  const isAiProcessing = overallProgress === 100 && batch && batch.processed_files < batch.received_files;
+  const completedBatchFiles = batch ? batch.processed_files + batch.failed_files + batch.duplicate_files + batch.rejected_files : 0;
+  const isAiProcessing = overallProgress === 100 && batch && completedBatchFiles < batch.received_files;
+  const isCompleted = overallProgress === 100 && batch && completedBatchFiles >= batch.received_files && batch.received_files > 0;
+  const aiProgress = batch && batch.received_files > 0 ? Math.round((completedBatchFiles / batch.received_files) * 100) : 0;
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-slate-100 space-y-6">
@@ -203,18 +206,20 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
           <button
             onClick={startUpload}
             disabled={isUploading || files.filter((f) => f.status === "queued").length === 0}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-80 text-white rounded-lg text-sm font-medium transition min-w-[240px] relative overflow-hidden"
+            className={`px-4 py-2 ${isCompleted ? 'bg-emerald-600' : 'bg-indigo-600 hover:bg-indigo-500'} disabled:opacity-80 text-white rounded-lg text-sm font-medium transition min-w-[240px] relative overflow-hidden`}
           >
             {isUploading && (
               <div 
-                className="absolute top-0 left-0 h-full bg-indigo-400/40 transition-all duration-300"
-                style={{ width: `${overallProgress}%` }}
+                className={`absolute top-0 left-0 h-full ${isCompleted ? 'bg-emerald-500' : 'bg-indigo-400/40'} transition-all duration-300`}
+                style={{ width: `${isAiProcessing ? aiProgress : overallProgress}%` }}
               />
             )}
             <span className={`relative z-10 flex justify-center w-full ${isAiProcessing ? 'animate-pulse' : ''}`}>
-              {isUploading 
-                ? (isAiProcessing ? thinkingText : `Uploading ${overallProgress}%${etaString}`) 
-                : "Start Batch Upload"}
+              {isCompleted
+                ? "Completed ✅"
+                : isUploading 
+                  ? (isAiProcessing ? `${thinkingText} ${aiProgress}%` : `Uploading ${overallProgress}%${etaString}`) 
+                  : "Start Batch Upload"}
             </span>
           </button>
           <button
@@ -231,7 +236,7 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-950/60 rounded-lg border border-slate-800 text-xs">
           <div>
             <span className="text-slate-400">Total Received:</span>
-            <p className="text-lg font-semibold text-indigo-400">{batch.received_files} / {batch.total_files}</p>
+            <p className="text-lg font-semibold text-indigo-400">{batch.received_files}</p>
           </div>
           <div>
             <span className="text-slate-400">Duplicates Detected:</span>
