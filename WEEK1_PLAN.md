@@ -214,7 +214,7 @@ matched, pending, messages sent, accuracy).
 
 **Week 4 — Quality & Scale:** duplicate removal (perceptual hashing) · photo blur +
 smile/quality scoring to pick best photo · multi-face detection per photo · cloud
-deployment + S3-equivalent storage (swap [DECISION D3] backend) · consent +
+deployment + S3-equivalent storage (swap [DECISION W1.D3] backend) · consent +
 data-deletion workflow/UI · encrypted/hashed embeddings.
 
 **Beyond MVP:** multi-organizer support · payments/billing · offline/kiosk capture ·
@@ -222,4 +222,4 @@ SMS fallback + multilingual UI · search-by-selfie (no prior registration).
 
 > [!WARNING]
 > Reminder: if you hit a Week 1 decision this doc has NOT already locked
-> (D1–D6), flag it — do not guess.
+> (W1.D1–W1.D6), flag it — do not guess.

@@ -28,6 +28,8 @@ export interface Photo {
   status: string;
   face_count: number;
   created_at: string;
+  dup_cluster_id?: string;
+  is_cluster_representative?: boolean;
   faces: PhotoFace[];
 }
 
@@ -39,7 +41,7 @@ export interface PhotoListResponse {
 
 export async function getEventPhotos(
   eventId: string,
-  params?: { status?: string; face_count_zero?: boolean; cursor?: string; limit?: number }
+  params?: { status?: string; face_count_zero?: boolean; group_duplicates?: boolean; cursor?: string; limit?: number }
 ): Promise<PhotoListResponse> {
   const { data } = await api.get<PhotoListResponse>(`/events/${eventId}/photos`, { params });
   return data;

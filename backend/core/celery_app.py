@@ -27,8 +27,8 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     task_reject_on_worker_lost=True,
-    task_time_limit=300,
-    task_soft_time_limit=240,
+    task_time_limit=660,
+    task_soft_time_limit=600,
     visibility_timeout=600,
     task_routes={
         "workers.faces.*": {"queue": "faces"},
