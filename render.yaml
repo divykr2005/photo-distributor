@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: photo-distributor-backend
+    env: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: ENV
+        value: production
+      - key: STORAGE_BACKEND
+        value: r2
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_DRIVE_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
