@@ -17,6 +17,7 @@ RUN mkdir -p /root/.insightface/models/buffalo_l && \
     rm /tmp/buffalo_l.zip
 
 COPY . .
+RUN chmod +x render-entrypoint.sh
 
 EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./render-entrypoint.sh"]
