@@ -10,11 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-install InsightFace buffalo_l model (avoids runtime download)
-RUN wget -q -O /tmp/buffalo_l.zip https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip && \
-    mkdir -p /root/.insightface/models/buffalo_l && \
-    unzip -q /tmp/buffalo_l.zip -d /root/.insightface/models/buffalo_l && \
-    rm /tmp/buffalo_l.zip
+# Pre-install InsightFace buffalo_s model (avoids runtime download and OOM)
+RUN wget -q -O /tmp/buffalo_s.zip https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_s.zip && \
+    mkdir -p /root/.insightface/models/buffalo_s && \
+    unzip -q /tmp/buffalo_s.zip -d /root/.insightface/models/buffalo_s && \
+    rm /tmp/buffalo_s.zip
 
 COPY . .
 RUN chmod +x render-entrypoint.sh
