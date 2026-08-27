@@ -78,33 +78,25 @@ async def public_guest_register(
     )
     guest = repo.create(guest_in)
 
-    # Persist file
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
     ext = (
         file.filename.rsplit(".", 1)[-1]
         if file.filename and "." in file.filename
         else "jpg"
     )
     filename = f"{uuid.uuid4()}.{ext}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
-    with open(filepath, "wb") as f:
-        f.write(contents)
 
     # Update image path
     storage_key = f"uploads/guests/{filename}"
+    
+    from services.storage import get_storage_backend
+    storage = get_storage_backend()
+    storage.put(storage_key, contents)
+    
     guest = repo.update_image(guest, storage_key)
 
-    # Synchronously extract embedding
-    from worker.tasks import process_guest_registration_photo
-
-    try:
-        process_guest_registration_photo(str(guest.id), filepath, db)
-    except (FaceQualityError, ValueError) as e:
-        # If quality fails, we still created the guest, but embedding failed.
-        # It's better to delete the guest so they try again, or just let them retry upload.
-        # For public reg, we should rollback or delete the guest so they can fix it immediately.
-        repo.delete(guest)
-        raise HTTPException(status_code=422, detail=str(e))
+    # Asynchronously extract embedding via Celery
+    from worker.tasks import process_guest_registration_photo_task
+    process_guest_registration_photo_task.delay(str(guest.id), storage_key)
 
     db.refresh(guest)
     

@@ -61,7 +61,7 @@ export default function NewGuestPage() {
 
     try {
       // Create guest
-      const { data: guest } = await api.post("/guests", body);
+      const { data: guest } = await api.post("/guests/", body);
 
       // Upload photo if captured
       if (photoFile) {

@@ -140,30 +140,26 @@ async def upload_guest_photo(
         raise HTTPException(status_code=404, detail="Guest not found")
     _verify_event_owner(db, guest.event_id, current_user.id)
 
-    # Persist file to disk
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    from services.storage import get_storage_backend
+    storage = get_storage_backend()
+    
     ext = (
         file.filename.rsplit(".", 1)[-1]
         if file.filename and "." in file.filename
         else "jpg"
     )
     filename = f"{uuid.uuid4()}.{ext}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
-    with open(filepath, "wb") as f:
-        f.write(contents)
+    storage_key = f"uploads/guests/{filename}"
+    
+    # Upload file to storage
+    storage.put(storage_key, contents)
 
     # Update image_path on guest record immediately
-    storage_key = f"uploads/guests/{filename}"
     guest = guest_repo.update_image(guest, storage_key)
 
-    # Run embedding pipeline synchronously (Celery is out of scope for Week 1)
-    from worker.tasks import process_guest_registration_photo
-
-    try:
-        process_guest_registration_photo(str(guest_id), filepath, db)
-    except (FaceQualityError, ValueError) as e:
-        # Quality gate rejected — surface the specific reason with 422
-        raise HTTPException(status_code=422, detail=str(e))
+    # Run embedding pipeline asynchronously via Celery to prevent Uvicorn OOM
+    from worker.tasks import process_guest_registration_photo_task
+    process_guest_registration_photo_task.delay(str(guest_id), storage_key)
 
     # Re-fetch to return updated embedding_status
     db.refresh(guest)

@@ -38,7 +38,7 @@ export default function NewEventPage() {
     }
 
     try {
-      await api.post("/events", body);
+      await api.post("/events/", body);
       router.push("/events");
     } catch (err: unknown) {
       const msg =

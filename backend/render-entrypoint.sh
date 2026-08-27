@@ -4,9 +4,8 @@ set -e
 echo "Applying database migrations..."
 alembic upgrade head
 
-echo "Starting Celery worker (handling all queues on free tier)..."
-# Render free instances have 512MB RAM, limiting concurrency to 1 to avoid OOM
-celery -A core.celery_app.celery_app worker -Q celery,faces,match,maintenance --concurrency=1 --loglevel=info &
+# Use --pool=solo to avoid preforking a second Python process, saving memory but keeping it reliable.
+celery -A core.celery_app.celery_app worker -Q celery,faces,match,maintenance --pool=solo --loglevel=info &
 
 echo "Starting Celery beat (cron jobs)..."
 celery -A core.celery_app.celery_app beat --loglevel=info &

@@ -52,6 +52,42 @@ def process_guest_registration_photo(guest_id: str, photo_path: str, db: Session
 # ---------------------------------------------------------------------------
 from core.celery_app import celery_app
 
+@celery_app.task(
+    name="worker.tasks.process_guest_registration_photo_task",
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 2},
+)
+def process_guest_registration_photo_task(self, guest_id: str, storage_key: str) -> None:
+    from database.session import SessionLocal
+    from services.storage import get_storage_backend
+    import io
+    import tempfile
+    import os
+    
+    db = SessionLocal()
+    storage = get_storage_backend()
+    try:
+        photo_bytes = storage.get(storage_key)
+        if not photo_bytes:
+            logger.error(f"process_guest_registration_photo_task: Photo not found in storage: {storage_key}")
+            return
+            
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+            tmp.write(photo_bytes)
+            tmp_path = tmp.name
+            
+        try:
+            process_guest_registration_photo(guest_id, tmp_path, db)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+    except Exception as e:
+        logger.error(f"process_guest_registration_photo_task failed for {guest_id}: {e}")
+        raise
+    finally:
+        db.close()
 
 @celery_app.task(
     name="worker.tasks.process_event_photo_task",
