@@ -63,7 +63,7 @@ async def upload_photo(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    _verify_event_owner(db, event_id, current_user.id)
+    _verify_event_owner(db, event_id, current_user.id)  # type: ignore
 
     if batch_id:
         batch = db.query(UploadBatch).filter(UploadBatch.id == batch_id, UploadBatch.event_id == event_id).first()
@@ -88,7 +88,7 @@ async def upload_photo(
                 if batch_id:
                     batch = db.query(UploadBatch).filter(UploadBatch.id == batch_id).first()
                     if batch:
-                        batch.rejected_files += 1
+                        batch.rejected_files = batch.rejected_files + 1  # type: ignore
                         db.commit()
                 raise HTTPException(status_code=400, detail=f"File exceeds limit of {MAX_PHOTO_MB}MB.")
 
@@ -107,7 +107,7 @@ async def upload_photo(
             if batch_id:
                 batch = db.query(UploadBatch).filter(UploadBatch.id == batch_id).first()
                 if batch:
-                    batch.rejected_files += 1
+                    batch.rejected_files = batch.rejected_files + 1  # type: ignore
                     db.commit()
             raise HTTPException(status_code=400, detail="Invalid image file format. Only JPEG, PNG, HEIC are accepted.")
 
@@ -128,10 +128,10 @@ async def upload_photo(
             if batch_id:
                 batch = db.query(UploadBatch).filter(UploadBatch.id == batch_id).first()
                 if batch:
-                    batch.duplicate_files += 1
-                    batch.received_files += 1
+                    batch.duplicate_files = batch.duplicate_files + 1  # type: ignore
+                    batch.received_files = batch.received_files + 1  # type: ignore
                     db.commit()
-            return PhotoUploadResponse(photo_id=existing_photo.id, duplicate=True)
+            return PhotoUploadResponse(photo_id=existing_photo.id, duplicate=True)  # type: ignore
 
         # Step 6: Create database record atomically
         photo_id = uuid.uuid4()
@@ -154,7 +154,7 @@ async def upload_photo(
         if batch_id:
             batch = db.query(UploadBatch).filter(UploadBatch.id == batch_id).first()
             if batch:
-                batch.received_files += 1
+                batch.received_files = batch.received_files + 1  # type: ignore
         
         try:
             db.commit()
@@ -167,7 +167,7 @@ async def upload_photo(
                 .first()
             )
             if existing:
-                return PhotoUploadResponse(photo_id=existing.id, duplicate=True)
+                return PhotoUploadResponse(photo_id=existing.id, duplicate=True)  # type: ignore
             raise HTTPException(status_code=500, detail="Database insertion conflict.")
 
         # Step 7: Move temp file to final storage key & enqueue processing
@@ -206,12 +206,13 @@ def list_event_photos(
     event_id: UUID,
     status: Optional[str] = Query(None),
     face_count_zero: Optional[bool] = Query(None),
+    group_duplicates: Optional[bool] = Query(None),
     cursor: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    _verify_event_owner(db, event_id, current_user.id)
+    _verify_event_owner(db, event_id, current_user.id)  # type: ignore
 
     query = db.query(Photo).filter(Photo.event_id == event_id)
 
@@ -222,6 +223,11 @@ def list_event_photos(
         query = query.filter(Photo.face_count == 0)
     elif face_count_zero is False:
         query = query.filter(Photo.face_count > 0)
+        
+    if group_duplicates:
+        query = query.filter(
+            (Photo.dup_cluster_id.is_(None)) | (Photo.is_cluster_representative == True)
+        )
 
     # Keyset pagination on created_at / id
     if cursor:
@@ -264,7 +270,7 @@ def delete_photo(
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
 
-    _verify_event_owner(db, photo.event_id, current_user.id)
+    _verify_event_owner(db, photo.event_id, current_user.id)  # type: ignore
 
     # Gather storage keys before deleting DB row
     keys_to_delete = [photo.storage_key, photo.web_key, photo.thumb_key]
@@ -281,4 +287,78 @@ def delete_photo(
     storage = get_storage_backend()
     for key in keys_to_delete:
         if key:
-            storage.delete(key)
+            storage.delete(str(key))
+
+
+from pydantic import BaseModel
+class BulkDeleteRequest(BaseModel):
+    photo_ids: list[UUID]
+
+@router.post("/events/{event_id}/photos/bulk-delete", status_code=204)
+def bulk_delete_photos(
+    event_id: UUID,
+    req: BulkDeleteRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _verify_event_owner(db, event_id, current_user.id)  # type: ignore
+
+    photos = db.query(Photo).filter(Photo.id.in_(req.photo_ids), Photo.event_id == event_id).all()
+    
+    storage = get_storage_backend()
+    keys_to_delete = []
+    
+    for photo in photos:
+        keys_to_delete.extend([photo.storage_key, photo.web_key, photo.thumb_key])
+        faces = db.query(PhotoFace).filter(PhotoFace.photo_id == photo.id).all()
+        for face in faces:
+            if face.crop_key:
+                keys_to_delete.append(face.crop_key)
+                
+        db.delete(photo)
+
+    db.commit()
+
+    for key in keys_to_delete:
+        if key:
+            storage.delete(str(key))
+
+import re
+
+class DriveImportRequest(BaseModel):
+    drive_url: str
+
+@router.post("/events/{event_id}/photos/import-drive", status_code=202)
+def import_photos_from_drive(
+    event_id: UUID,
+    req: DriveImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _verify_event_owner(db, event_id, current_user.id)  # type: ignore
+    
+    # Extract folder ID from URL
+    match = re.search(r'/folders/([a-zA-Z0-9_-]+)', req.drive_url)
+    if not match:
+        raise HTTPException(status_code=400, detail="Invalid Google Drive folder URL. Make sure it contains '/folders/'")
+        
+    folder_id = match.group(1)
+    
+    # Create an upload batch
+    batch = UploadBatch(
+        event_id=event_id,
+        created_by=current_user.id,
+        total_files=0, # Will be updated by the task
+        received_files=0,
+        duplicate_files=0,
+        rejected_files=0,
+        status="active",
+    )
+    db.add(batch)
+    db.commit()
+    db.refresh(batch)
+    
+    from worker.tasks import import_drive_photos_task
+    import_drive_photos_task.delay(str(event_id), folder_id, str(current_user.id), str(batch.id))
+    
+    return {"message": "Drive import started", "batch_id": str(batch.id)}

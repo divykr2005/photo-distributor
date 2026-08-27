@@ -36,10 +36,14 @@ def visible_match_count(db: Session, guest_id: UUID) -> int:
     return visible_matches(db, guest_id).count()
 
 
-def visible_photo_ids(db: Session, guest_id: UUID) -> list[UUID]:
+def visible_photo_ids(db: Session, guest_id: UUID, best_only: bool = False) -> list[UUID]:
     """Return the ordered list of photo IDs visible to a guest."""
+    query = visible_matches(db, guest_id)
+    if best_only:
+        query = query.filter((Match.cluster_rank == 1) | (Match.cluster_rank.is_(None)))
+        
     rows = (
-        visible_matches(db, guest_id)
+        query
         .with_entities(Match.photo_id)
         .order_by(Match.similarity.desc())
         .all()

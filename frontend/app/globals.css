@@ -1,50 +1,56 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: var(--font-albert), ui-sans-serif, system-ui, sans-serif;
+  
+  /* Impeccable Custom Theme Colors */
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+  --color-brand-950: #1e1b4b;
+}
+
 /* ── Custom animations ── */
-@keyframes gradient-shift {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 @keyframes float {
-  0%,
-  100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
 }
 
-@keyframes slide-in-from-top {
-  from {
-    transform: translateY(-8px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+@keyframes slide-in-top {
+  from { transform: translateY(-12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slide-in-bottom {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 @keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 /* ── Utility classes ── */
-@utility animate-gradient {
-  animation: gradient-shift 6s ease infinite;
-  background-size: 200% 200%;
+@utility animate-shimmer {
+  animation: shimmer 2s infinite;
 }
 
 @utility animate-float {
@@ -52,22 +58,31 @@
 }
 
 @utility animate-in {
-  animation: fade-in 0.3s ease-out;
+  animation: fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@utility slide-in-from-top-2 {
-  animation: slide-in-from-top 0.3s ease-out;
+@utility slide-in-top {
+  animation: slide-in-top 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@utility slide-in-bottom {
+  animation: slide-in-bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@utility pulse-soft {
+  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* ── Base styles ── */
 body {
-  background-color: #0a0e1a;
-  color: #e2e8f0;
+  background-color: #09090b; /* zinc-950 */
+  color: #f4f4f5; /* zinc-100 */
 }
 
 /* ── Custom scrollbar ── */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -75,16 +90,25 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 3px;
+  background: #3f3f46; /* zinc-700 */
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #52525b; /* zinc-600 */
 }
 
 /* ── Focus ring reset ── */
 *:focus-visible {
-  outline: 2px solid #7c3aed;
+  outline: 2px solid #6366f1; /* brand-500 */
   outline-offset: 2px;
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  @apply bg-zinc-900/60 backdrop-blur-md border border-zinc-800/80 shadow-xl;
+}
+
+.glass-card {
+  @apply bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 hover:bg-zinc-900/60 hover:border-zinc-700/50 transition-all duration-300;
 }

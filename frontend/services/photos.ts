@@ -10,6 +10,12 @@ export interface PhotoFace {
   bbox_h: number;
   det_score: number;
   quality_score?: number;
+  sharpness_score?: number;
+  eye_open_score?: number;
+  smile_score?: number;
+  frontality_score?: number;
+  exposure_score?: number;
+  composite_quality?: number;
   is_matchable: boolean;
   quality_flags?: string[];
   crop_key?: string;
@@ -28,6 +34,8 @@ export interface Photo {
   status: string;
   face_count: number;
   created_at: string;
+  dup_cluster_id?: string;
+  is_cluster_representative?: boolean;
   faces: PhotoFace[];
 }
 
@@ -39,7 +47,7 @@ export interface PhotoListResponse {
 
 export async function getEventPhotos(
   eventId: string,
-  params?: { status?: string; face_count_zero?: boolean; cursor?: string; limit?: number }
+  params?: { status?: string; face_count_zero?: boolean; group_duplicates?: boolean; cursor?: string; limit?: number }
 ): Promise<PhotoListResponse> {
   const { data } = await api.get<PhotoListResponse>(`/events/${eventId}/photos`, { params });
   return data;

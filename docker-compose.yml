@@ -108,7 +108,7 @@ services:
       celery -A core.celery_app.celery_app worker
       --loglevel=info
       --concurrency=2
-      -Q match
+      -Q match,celery
     restart: unless-stopped
 
   worker-zip:

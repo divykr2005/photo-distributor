@@ -20,7 +20,7 @@ UPLOAD_DIR = os.path.join(
 )
 
 
-def _verify_event_owner(db: Session, event_id: UUID, user_id: UUID) -> Event:
+def _verify_event_owner(db: Session, event_id, user_id) -> Event:
     """Ensure the event exists and belongs to the current user."""
     event = (
         db.query(Event)
@@ -40,7 +40,9 @@ def create_guest(
 ):
     _verify_event_owner(db, guest_in.event_id, current_user.id)
     repo = GuestRepository(db)
-    return repo.create(guest_in)
+    guest = repo.create(guest_in)
+    from schemas.guest import GuestResponse
+    return GuestResponse.model_validate(guest)
 
 
 @router.get("/")
@@ -55,9 +57,11 @@ def list_guests(
     repo = GuestRepository(db)
     skip = (page - 1) * page_size
     guests, total = repo.search(
-        current_user.id, query=search, event_id=event_id, skip=skip, limit=page_size
+        current_user.id, query=search, event_id=event_id, skip=skip, limit=page_size  # type: ignore
     )
-    return {"data": guests, "total": total, "page": page, "page_size": page_size}
+    from schemas.guest import GuestResponse
+    guests_data = [GuestResponse.model_validate(g) for g in guests]
+    return {"data": guests_data, "total": total, "page": page, "page_size": page_size}
 
 
 @router.get("/{guest_id}", response_model=GuestResponse)
@@ -71,7 +75,8 @@ def get_guest(
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
     _verify_event_owner(db, guest.event_id, current_user.id)
-    return guest
+    from schemas.guest import GuestResponse
+    return GuestResponse.model_validate(guest)
 
 
 @router.put("/{guest_id}", response_model=GuestResponse)
@@ -86,7 +91,9 @@ def update_guest(
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
     _verify_event_owner(db, guest.event_id, current_user.id)
-    return repo.update(guest, guest_in)
+    guest = repo.update(guest, guest_in)
+    from schemas.guest import GuestResponse
+    return GuestResponse.model_validate(guest)
 
 
 @router.delete("/{guest_id}", status_code=204)

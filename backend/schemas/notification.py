@@ -47,6 +47,8 @@ class NotificationLogItem(BaseModel):
     provider: Optional[str] = None
     provider_message_id: Optional[str] = None
     error: Optional[str] = None
+    error_message: Optional[str] = None
+    guest_name: Optional[str] = None
     attempts: int
     next_retry_at: Optional[datetime] = None
     sent_at: Optional[datetime] = None

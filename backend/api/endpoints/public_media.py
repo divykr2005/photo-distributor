@@ -155,13 +155,15 @@ def get_public_media(
         storage_key = photo.storage_key
 
     storage = get_storage_backend()
-    file_path = storage.get_path(str(storage_key))
-    if not file_path or not os.path.exists(file_path):
+    try:
+        image_bytes = storage.get(str(storage_key))
+        if not image_bytes:
+            raise HTTPException(status_code=404, detail="Media file not found")
+    except Exception:
         raise HTTPException(status_code=404, detail="Media file not found")
 
-    # Generate ETag from file modification time + size
-    stat = os.stat(file_path)
-    etag = f'"{hashlib.md5(f"{stat.st_mtime}:{stat.st_size}:{photo_id}:{variant}".encode()).hexdigest()}"'
+    # Generate ETag from length and variant
+    etag = f'"{hashlib.md5(f"{len(image_bytes)}:{photo_id}:{variant}".encode()).hexdigest()}"'
 
     # Check If-None-Match for 304
     if request:
@@ -171,10 +173,6 @@ def get_public_media(
                 "ETag": etag,
                 "Cache-Control": "private, max-age=3600",
             })
-
-    # Read file and strip EXIF from web/thumb derivatives
-    with open(file_path, "rb") as f:
-        image_bytes = f.read()
 
     # Strip EXIF (especially GPS) from web and thumb — D16 requirement
     image_bytes = _strip_exif(image_bytes)
@@ -196,6 +194,7 @@ def get_public_media(
 def get_public_guest_photos(
     access_code: str,
     cursor: str | None = Query(None, description="Keyset cursor for pagination"),
+    show_all: bool = Query(False, description="If true, show all visible photos. If false, show only the best of burst (cluster_rank=1)."),
     db: Session = Depends(get_db),
 ):
     """
@@ -211,11 +210,17 @@ def get_public_guest_photos(
         .with_entities(
             Match.photo_id,
             Match.similarity,
+            Match.cluster_rank,
             Photo.original_filename,
             Photo.exif_taken_at,
         )
-        .order_by(Match.similarity.desc(), Match.photo_id)
     )
+
+    if not show_all:
+        # Show only the best photos (cluster_rank = 1) or those not yet ranked
+        query = query.filter((Match.cluster_rank == 1) | (Match.cluster_rank.is_(None)))
+
+    query = query.order_by(Match.similarity.desc(), Match.photo_id)
 
     # Keyset pagination: cursor is "similarity:photo_id"
     if cursor:

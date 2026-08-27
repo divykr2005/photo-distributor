@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from api.endpoints import auth, events, dashboard, guests, event_photos, photos, uploads, matches, media, pipeline, magic_links, public, public_media, public_selfie, public_download, public_zip, notifications
+from api.endpoints import auth, events, dashboard, guests, event_photos, photos, uploads, matches, media, pipeline, magic_links, public, public_media, public_selfie, public_download, public_zip, notifications, clusters, public_registration
 from core.config import settings
 from middleware.rate_limit import limiter
 
@@ -67,6 +67,9 @@ app.include_router(
 app.include_router(
     pipeline.router, prefix=f"{settings.API_V1_STR}", tags=["pipeline"]
 )
+app.include_router(
+    clusters.router, prefix=f"{settings.API_V1_STR}/events", tags=["clusters"]
+)
 
 # Week 3: organizer magic-link management
 app.include_router(
@@ -91,6 +94,9 @@ app.include_router(
 )
 app.include_router(
     public_zip.router, prefix=f"{settings.API_V1_STR}/public", tags=["public_zip"]
+)
+app.include_router(
+    public_registration.router, prefix=f"{settings.API_V1_STR}/public", tags=["public_registration"]
 )
 app.include_router(
     notifications.public_opt_out_router, prefix=f"{settings.API_V1_STR}", tags=["public_opt_out"]

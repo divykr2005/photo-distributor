@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, String, Text, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
 
@@ -45,6 +45,9 @@ class Guest(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+    wrapped_dek = Column(LargeBinary, nullable=True)
+    dek_key_id = Column(String(100), nullable=True)
     expires_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc) + timedelta(days=15),

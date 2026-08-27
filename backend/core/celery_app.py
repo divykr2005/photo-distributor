@@ -14,6 +14,7 @@ celery_app = Celery(
         "workers.maintenance",
         "workers.zip_worker",
         "workers.notifications",
+        "worker.tasks",
     ]
 )
 
@@ -27,14 +28,15 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     task_reject_on_worker_lost=True,
-    task_time_limit=300,
-    task_soft_time_limit=240,
+    task_time_limit=660,
+    task_soft_time_limit=600,
     visibility_timeout=600,
     task_routes={
         "workers.faces.*": {"queue": "faces"},
         "workers.matching.*": {"queue": "match"},
         "workers.maintenance.*": {"queue": "maintenance"},
         "workers.zip.*": {"queue": "maintenance"},
+        "worker.tasks.*": {"queue": "maintenance"},
     },
     beat_schedule={
         "check-dirty-events-every-30s": {

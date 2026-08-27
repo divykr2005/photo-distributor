@@ -27,11 +27,22 @@ function FaceCropItem({ face }: { face: PhotoFace }) {
       )}
       <div className="text-xs space-y-1">
         <p className="font-semibold text-white">
-          Quality: <span className="text-emerald-400">{((face.quality_score || 0) * 100).toFixed(0)}%</span>
+          Composite: <span className="text-indigo-400">{((face.composite_quality || face.quality_score || 0) * 100).toFixed(0)}%</span>
         </p>
         <p className="text-slate-400">
           Detection: {(face.det_score * 100).toFixed(1)}%
         </p>
+        
+        {face.composite_quality !== undefined && (
+          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-slate-500 mt-1">
+            <span>Sharp: {((face.sharpness_score || 0) * 100).toFixed(0)}%</span>
+            <span>Eyes: {((face.eye_open_score || 0) * 100).toFixed(0)}%</span>
+            <span>Front: {((face.frontality_score || 0) * 100).toFixed(0)}%</span>
+            <span>Smile: {((face.smile_score || 0) * 100).toFixed(0)}%</span>
+            <span>Exp: {((face.exposure_score || 0) * 100).toFixed(0)}%</span>
+          </div>
+        )}
+
         {face.quality_flags && face.quality_flags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {face.quality_flags.map((flag) => (

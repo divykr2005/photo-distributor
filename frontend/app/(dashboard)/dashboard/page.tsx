@@ -6,11 +6,13 @@ import {
   HiOutlineCalendar,
   HiOutlineUserGroup,
   HiOutlineUserAdd,
+  HiOutlineLightningBolt,
 } from "react-icons/hi";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/api";
 import type { DashboardStats } from "@/types";
 import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -33,23 +35,23 @@ export default function DashboardPage() {
       value: stats.total_events,
       icon: <HiOutlineCalendar className="w-6 h-6" />,
       description: "Events created",
-      gradient: "from-violet-500 to-indigo-500",
-      shadow: "shadow-violet-500/20",
+      gradient: "from-indigo-500 to-indigo-600",
+      shadow: "shadow-indigo-500/20",
     },
     {
       title: "Total Guests",
       value: stats.total_guests,
       icon: <HiOutlineUserGroup className="w-6 h-6" />,
       description: "Guests registered",
-      gradient: "from-cyan-500 to-blue-500",
-      shadow: "shadow-cyan-500/20",
+      gradient: "from-zinc-400 to-zinc-500",
+      shadow: "shadow-zinc-500/20",
     },
     {
       title: "Registered Today",
       value: stats.registered_today,
       icon: <HiOutlineUserAdd className="w-6 h-6" />,
       description: "New guests today",
-      gradient: "from-emerald-500 to-teal-500",
+      gradient: "from-emerald-500 to-emerald-600",
       shadow: "shadow-emerald-500/20",
     },
   ];
@@ -57,28 +59,38 @@ export default function DashboardPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">
-          Welcome back, {user?.name?.split(" ")[0] || "Organizer"} 👋
-        </h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Here&apos;s an overview of your event platform
-        </p>
+      <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold text-white tracking-tight">
+            Welcome back, {user?.name?.split(" ")[0] || "Organizer"}
+          </h1>
+          <p className="text-base text-zinc-400 mt-2">
+            Here's an overview of your event platform
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link href="/events/new">
+            <Button variant="primary" className="gap-2">
+              <HiOutlineLightningBolt className="w-5 h-5" />
+              Quick Add Event
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         {statCards.map((stat) => (
           <Card key={stat.title} gradient className="group hover:scale-[1.02] transition-transform duration-300">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-400">
+                <p className="text-sm font-medium text-zinc-400">
                   {stat.title}
                 </p>
-                <p className="text-3xl font-bold text-white mt-2">
+                <p className="text-3xl font-bold text-white mt-2 tracking-tight">
                   {stat.value}
                 </p>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-zinc-500 mt-1">
                   {stat.description}
                 </p>
               </div>
@@ -96,50 +108,49 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card gradient>
           <div className="text-center py-8">
-            <div className="inline-flex p-4 rounded-2xl bg-slate-700/30 mb-4">
-              <HiOutlineCalendar className="w-8 h-8 text-slate-500" />
+            <div className="inline-flex p-4 rounded-2xl bg-zinc-800/50 mb-5 border border-zinc-700/50">
+              <HiOutlineCalendar className="w-8 h-8 text-zinc-400" />
             </div>
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-xl font-medium text-white tracking-tight">
               {stats.total_events > 0 ? "Manage Events" : "Create Your First Event"}
             </h3>
-            <p className="text-sm text-slate-400 mt-2 max-w-sm mx-auto">
+            <p className="text-sm text-zinc-400 mt-3 max-w-sm mx-auto leading-relaxed">
               {stats.total_events > 0
                 ? `You have ${stats.total_events} event${stats.total_events > 1 ? "s" : ""}. Manage them or create a new one.`
                 : "Start by creating an event. You'll then be able to register guests and distribute photos automatically."}
             </p>
-            <Link
-              href={stats.total_events > 0 ? "/events" : "/events/new"}
-              className="inline-block mt-4"
-            >
-              <button className="px-5 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-500 hover:to-indigo-500 transition-all shadow-lg shadow-violet-500/25 cursor-pointer">
-                {stats.total_events > 0 ? "View Events" : "Create Event"}
-              </button>
-            </Link>
+            <div className="mt-6">
+              <Link href={stats.total_events > 0 ? "/events" : "/events/new"}>
+                <Button variant="primary">
+                  {stats.total_events > 0 ? "View Events" : "Create Event"}
+                </Button>
+              </Link>
+            </div>
           </div>
         </Card>
 
         <Card gradient>
           <div className="text-center py-8">
-            <div className="inline-flex p-4 rounded-2xl bg-slate-700/30 mb-4">
-              <HiOutlineUserGroup className="w-8 h-8 text-slate-500" />
+            <div className="inline-flex p-4 rounded-2xl bg-zinc-800/50 mb-5 border border-zinc-700/50">
+              <HiOutlineUserGroup className="w-8 h-8 text-zinc-400" />
             </div>
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-xl font-medium text-white tracking-tight">
               Register Guests
             </h3>
-            <p className="text-sm text-slate-400 mt-2 max-w-sm mx-auto">
+            <p className="text-sm text-zinc-400 mt-3 max-w-sm mx-auto leading-relaxed">
               Capture guest faces via webcam or upload photos. AI will generate
               embeddings for automatic photo matching.
             </p>
-            <div className="flex items-center justify-center gap-3 mt-4">
-              <Link href="/guests/new" className="inline-block">
-                <button className="px-5 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-500 hover:to-blue-500 transition-all shadow-lg shadow-cyan-500/25 cursor-pointer">
+            <div className="flex items-center justify-center gap-3 mt-6">
+              <Link href="/guests/new">
+                <Button variant="secondary">
                   Register Guest
-                </button>
+                </Button>
               </Link>
-              <Link href="/guests" className="inline-block">
-                <button className="px-5 py-2.5 rounded-xl text-sm font-medium border border-slate-600 text-slate-300 hover:border-slate-500 hover:text-white transition-all cursor-pointer">
+              <Link href="/guests">
+                <Button variant="ghost">
                   View All
-                </button>
+                </Button>
               </Link>
             </div>
           </div>

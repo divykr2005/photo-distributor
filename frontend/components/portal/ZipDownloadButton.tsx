@@ -32,6 +32,7 @@ export default function ZipDownloadButton({ accessCode, photoCount }: ZipDownloa
   });
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [bestOnly, setBestOnly] = useState<boolean>(true);
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const storageKey = `guest_zip_job_${accessCode}`;
@@ -109,7 +110,8 @@ export default function ZipDownloadButton({ accessCode, photoCount }: ZipDownloa
     setErrorMsg(null);
 
     try {
-      const res = await fetch(`${API_URL}/public/guest/${accessCode}/zip`, {
+      const url = `${API_URL}/public/guest/${accessCode}/zip${bestOnly ? "?best_only=true" : ""}`;
+      const res = await fetch(url, {
         method: "POST",
       });
 
@@ -180,13 +182,25 @@ export default function ZipDownloadButton({ accessCode, photoCount }: ZipDownloa
   return (
     <div className="flex flex-col items-center sm:items-start gap-2">
       {status === "idle" && (
-        <button
-          onClick={handleInitiateZip}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs sm:text-sm font-medium transition-all shadow-md hover:shadow-violet-500/20 active:scale-95"
-        >
-          <HiOutlineDownload className="w-4 h-4" />
-          <span>Download All ({photoCount} photos)</span>
-        </button>
+        <div className="flex flex-col gap-2 w-full">
+          <button
+            onClick={handleInitiateZip}
+            className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs sm:text-sm font-medium transition-all shadow-md hover:shadow-violet-500/20 active:scale-95"
+          >
+            <HiOutlineDownload className="w-4 h-4" />
+            <span>Download Zip</span>
+          </button>
+          
+          <label className="flex items-center gap-2 text-xs text-white/60 cursor-pointer pl-1">
+            <input 
+              type="checkbox" 
+              checked={bestOnly} 
+              onChange={(e) => setBestOnly(e.target.checked)}
+              className="rounded bg-white/10 border-white/20 text-violet-500 focus:ring-violet-500/50"
+            />
+            <span>Best of burst only (removes duplicates)</span>
+          </label>
+        </div>
       )}
 
       {status === "initiating" && (

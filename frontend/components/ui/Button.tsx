@@ -1,7 +1,7 @@
 import { ButtonHTMLAttributes, forwardRef } from "react";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "danger" | "ghost";
+  variant?: "primary" | "secondary" | "danger" | "ghost" | "glass";
   size?: "sm" | "md" | "lg";
   isLoading?: boolean;
 }
@@ -20,17 +20,19 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const baseStyles =
-      "inline-flex items-center justify-center font-medium rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
+      "inline-flex items-center justify-center font-medium rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-950 disabled:opacity-50 disabled:pointer-events-none cursor-pointer active:scale-95";
 
     const variants = {
       primary:
-        "bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-500 hover:to-indigo-500 focus:ring-violet-500 shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40",
+        "bg-indigo-600 text-white hover:bg-indigo-500 focus:ring-indigo-500 shadow-[0_0_15px_-3px_rgba(99,102,241,0.4)] hover:shadow-[0_0_20px_-3px_rgba(99,102,241,0.6)] border border-indigo-500/50",
       secondary:
-        "bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 hover:border-slate-600 focus:ring-slate-500",
+        "bg-zinc-800/80 text-zinc-100 border border-zinc-700/80 hover:bg-zinc-700 hover:border-zinc-600 focus:ring-zinc-500",
+      glass:
+        "bg-zinc-900/40 backdrop-blur-md text-zinc-200 border border-zinc-800 hover:bg-zinc-800/60 hover:border-zinc-700 focus:ring-zinc-500",
       danger:
-        "bg-gradient-to-r from-rose-600 to-red-600 text-white hover:from-rose-500 hover:to-red-500 focus:ring-rose-500 shadow-lg shadow-rose-500/25",
+        "bg-red-600/90 text-white hover:bg-red-500 focus:ring-red-500 shadow-lg shadow-red-600/20 border border-red-500/50",
       ghost:
-        "text-slate-400 hover:text-white hover:bg-slate-800/50 focus:ring-slate-500",
+        "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 focus:ring-zinc-500",
     };
 
     const sizes = {
@@ -68,7 +70,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             />
           </svg>
         )}
-        {children}
+        <span className={isLoading ? "opacity-90" : ""}>{children}</span>
       </button>
     );
   }

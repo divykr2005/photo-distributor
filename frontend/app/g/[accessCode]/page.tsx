@@ -109,7 +109,7 @@ function Lightbox({ photos, currentIndex, accessCode, onClose, onNavigate }: Lig
       </button>
 
       {/* Counter */}
-      <div className="absolute top-4 left-4 z-50 text-sm text-white/60 bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-sm">
+      <div className="absolute top-4 left-4 z-50 text-sm text-white/60 bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-sm font-medium tracking-wide">
         {currentIndex + 1} / {photos.length}
       </div>
 
@@ -142,7 +142,7 @@ function Lightbox({ photos, currentIndex, accessCode, onClose, onNavigate }: Lig
           draggable={false}
         />
         {/* Per-photo metadata — Day 16 spec */}
-        <div className="flex items-center gap-3 text-white/50 text-xs">
+        <div className="flex items-center gap-3 text-white/50 text-xs tracking-wide">
           {photo.filename && (
             <span className="truncate max-w-[200px]" title={photo.filename}>{photo.filename}</span>
           )}
@@ -166,10 +166,10 @@ function Lightbox({ photos, currentIndex, accessCode, onClose, onNavigate }: Lig
         <a
           href={`${API_URL}/public/photos/${photo.id}/download?token=${accessCode}`}
           onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors shadow-lg"
+          className="flex items-center gap-2 px-6 py-3 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-all shadow-[0_0_15px_-3px_rgba(99,102,241,0.4)] hover:shadow-[0_0_20px_-3px_rgba(99,102,241,0.6)] border border-indigo-500/50 hover:scale-[1.02] active:scale-95"
         >
-          <HiOutlineDownload className="w-4 h-4" />
-          Download
+          <HiOutlineDownload className="w-5 h-5" />
+          Download Photo
         </a>
       </div>
     </div>
@@ -186,6 +186,7 @@ export default function GuestPortalPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [showAll, setShowAll] = useState<boolean>(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Fetch portal info
@@ -214,9 +215,15 @@ export default function GuestPortalPage() {
 
   // Fetch photos page
   const fetchPhotos = useCallback(
-    async (cursor?: string) => {
+    async (cursor?: string, currentShowAll: boolean = false) => {
       if (!accessCode) return;
-      const url = `${API_URL}/public/guest/${accessCode}/photos${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`;
+      
+      const params = new URLSearchParams();
+      if (cursor) params.append("cursor", cursor);
+      if (currentShowAll) params.append("show_all", "true");
+      
+      const qs = params.toString();
+      const url = `${API_URL}/public/guest/${accessCode}/photos${qs ? `?${qs}` : ""}`;
       try {
         const res = await fetch(url);
         if (!res.ok) return;
@@ -230,6 +237,15 @@ export default function GuestPortalPage() {
     [accessCode]
   );
 
+  // Initial load or toggle change
+  useEffect(() => {
+    if (state === "ready") {
+      setPhotos([]);
+      setNextCursor(null);
+      fetchPhotos(undefined, showAll);
+    }
+  }, [showAll, state, fetchPhotos]);
+
   // Infinite scroll via IntersectionObserver
   useEffect(() => {
     if (!sentinelRef.current || !nextCursor) return;
@@ -237,7 +253,7 @@ export default function GuestPortalPage() {
       (entries) => {
         if (entries[0].isIntersecting && nextCursor && !loadingMore) {
           setLoadingMore(true);
-          fetchPhotos(nextCursor).finally(() => setLoadingMore(false));
+          fetchPhotos(nextCursor, showAll).finally(() => setLoadingMore(false));
         }
       },
       { rootMargin: "200px" }
@@ -270,11 +286,11 @@ export default function GuestPortalPage() {
     return (
       <div className="min-h-screen flex items-center justify-center px-6">
         <div className="text-center space-y-4 max-w-sm">
-          <div className="mx-auto w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center">
+          <div className="mx-auto w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
             <HiOutlineCalendar className="w-8 h-8 text-amber-400" />
           </div>
-          <h1 className="text-xl font-semibold text-white">Link Expired</h1>
-          <p className="text-white/50 text-sm leading-relaxed">
+          <h1 className="text-xl font-semibold text-white tracking-tight">Link Expired</h1>
+          <p className="text-zinc-400 text-sm leading-relaxed">
             This photo link has expired. Please contact your event organizer for a new one.
           </p>
         </div>
@@ -286,11 +302,11 @@ export default function GuestPortalPage() {
     return (
       <div className="min-h-screen flex items-center justify-center px-6">
         <div className="text-center space-y-4 max-w-sm">
-          <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
+          <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20">
             <HiOutlineExclamationCircle className="w-8 h-8 text-red-400" />
           </div>
-          <h1 className="text-xl font-semibold text-white">Link Not Found</h1>
-          <p className="text-white/50 text-sm leading-relaxed">
+          <h1 className="text-xl font-semibold text-white tracking-tight">Link Not Found</h1>
+          <p className="text-zinc-400 text-sm leading-relaxed">
             This photo link is invalid. Please check the link or contact your event organizer.
           </p>
         </div>
@@ -302,16 +318,16 @@ export default function GuestPortalPage() {
     return (
       <div className="min-h-screen flex items-center justify-center px-6">
         <div className="text-center space-y-4 max-w-sm">
-          <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
+          <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20">
             <HiOutlineExclamationCircle className="w-8 h-8 text-red-400" />
           </div>
-          <h1 className="text-xl font-semibold text-white">Something Went Wrong</h1>
-          <p className="text-white/50 text-sm leading-relaxed">
-            We couldn&apos;t load your photos. Please try again later or check your connection.
+          <h1 className="text-xl font-semibold text-white tracking-tight">Something Went Wrong</h1>
+          <p className="text-zinc-400 text-sm leading-relaxed">
+            We couldn't load your photos. Please try again later or check your connection.
           </p>
           <button
             onClick={() => window.location.reload()}
-            className="mt-2 px-5 py-2 rounded-full bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors"
+            className="mt-4 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-all shadow-lg shadow-indigo-600/20"
           >
             Try Again
           </button>
@@ -326,11 +342,11 @@ export default function GuestPortalPage() {
         {info && <PortalHeader info={info} accessCode={accessCode} />}
         <div className="flex-1 flex items-center justify-center px-6">
           <div className="text-center space-y-4 max-w-sm">
-            <div className="mx-auto w-16 h-16 rounded-full bg-violet-500/10 flex items-center justify-center">
-              <HiOutlinePhotograph className="w-8 h-8 text-violet-400" />
+            <div className="mx-auto w-16 h-16 rounded-full bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+              <HiOutlinePhotograph className="w-8 h-8 text-indigo-400" />
             </div>
-            <h2 className="text-lg font-semibold text-white">No Photos Yet</h2>
-            <p className="text-white/50 text-sm leading-relaxed">
+            <h2 className="text-xl font-medium text-white tracking-tight">No Photos Yet</h2>
+            <p className="text-zinc-400 text-sm leading-relaxed">
               No photos have been matched to you yet — check back after the photographer uploads.
             </p>
           </div>
@@ -344,8 +360,21 @@ export default function GuestPortalPage() {
     <div className="min-h-screen flex flex-col pb-8">
       {info && <PortalHeader info={info} accessCode={accessCode} />}
 
+      {/* Gallery Controls */}
+      <div className="px-4 py-4 flex justify-end">
+        <label className="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer hover:text-white transition-colors group">
+          <input 
+            type="checkbox" 
+            checked={showAll} 
+            onChange={(e) => setShowAll(e.target.checked)}
+            className="rounded bg-zinc-800 border-zinc-700 text-indigo-500 focus:ring-indigo-500/50 w-4 h-4"
+          />
+          <span className="font-medium group-hover:text-zinc-200">Show all similar photos</span>
+        </label>
+      </div>
+
       {/* Photo grid */}
-      <div className="px-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 sm:gap-2">
+      <div className="px-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
         {photos.map((photo, idx) => (
           <PhotoTile
             key={photo.id}
@@ -360,12 +389,12 @@ export default function GuestPortalPage() {
       {/* Infinite-scroll sentinel */}
       {nextCursor && (
         <div ref={sentinelRef} className="flex justify-center py-8">
-          <div className="flex items-center gap-2 text-white/30 text-sm">
+          <div className="flex items-center gap-2 text-zinc-500 text-sm font-medium">
             <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Loading more…
+            Loading more photos...
           </div>
         </div>
       )}
@@ -396,27 +425,27 @@ function PortalHeader({ info, accessCode }: { info: PortalInfo; accessCode: stri
   });
 
   return (
-    <header className="px-4 pt-8 pb-6 text-center space-y-3">
-      <p className="text-violet-400 text-sm font-medium tracking-wide uppercase">
+    <header className="px-4 pt-10 pb-6 text-center space-y-3 border-b border-white/5 bg-zinc-950/50 backdrop-blur-md sticky top-0 z-40">
+      <p className="text-indigo-400 text-xs font-semibold tracking-widest uppercase">
         {info.event_title}
       </p>
-      <h1 className="text-2xl sm:text-3xl font-bold text-white">
+      <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
         Hi {info.first_name} 👋
       </h1>
-      <div className="flex items-center justify-center gap-3 text-white/40 text-sm">
-        <span className="flex items-center gap-1">
+      <div className="flex items-center justify-center gap-3 text-zinc-400 text-sm font-medium pt-1">
+        <span className="flex items-center gap-1.5">
           <HiOutlineCalendar className="w-4 h-4" />
           {formattedDate}
         </span>
-        <span>•</span>
-        <span className="flex items-center gap-1">
+        <span className="text-zinc-600">•</span>
+        <span className="flex items-center gap-1.5 text-zinc-300 bg-white/5 px-2.5 py-1 rounded-full border border-white/5">
           <HiOutlinePhotograph className="w-4 h-4" />
           {info.photo_count} photo{info.photo_count !== 1 ? "s" : ""}
         </span>
       </div>
 
       {info.photo_count > 0 && (
-        <div className="pt-2 flex justify-center">
+        <div className="pt-4 flex justify-center">
           <ZipDownloadButton accessCode={accessCode} photoCount={info.photo_count} />
         </div>
       )}
@@ -445,20 +474,24 @@ function PhotoTile({
   return (
     <button
       onClick={onClick}
-      className="aspect-square rounded-xl overflow-hidden relative group cursor-pointer bg-white/5 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 focus:ring-offset-[#0a0e1a]"
+      className="aspect-square rounded-xl overflow-hidden relative group cursor-pointer bg-zinc-900 border border-zinc-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 shadow-sm hover:shadow-lg transition-all"
     >
       {!loaded && (
-        <div className="absolute inset-0 bg-white/5 animate-pulse" />
+        <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
       )}
       <img
         src={thumbUrl}
         alt={`Photo ${index + 1}`}
         loading="lazy"
         onLoad={() => setLoaded(true)}
-        className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${loaded ? "opacity-100" : "opacity-0"}`}
+        className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03] ${loaded ? "opacity-100" : "opacity-0"}`}
       />
       {/* Hover overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
+         <span className="text-white text-xs font-medium translate-y-2 group-hover:translate-y-0 transition-transform duration-300 flex items-center gap-1">
+           <HiOutlinePhotograph className="w-4 h-4 opacity-70"/> View Full
+         </span>
+      </div>
     </button>
   );
 }

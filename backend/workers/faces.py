@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timezone
 import redis
 from sqlalchemy import text
+from celery.signals import worker_process_init
 
 from core.celery_app import celery_app
 from database.session import SessionLocal
@@ -12,6 +13,17 @@ from services.storage import get_storage_backend
 from core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+@worker_process_init.connect
+def prewarm_face_engine(**kwargs):
+    """Pre-load InsightFace model at worker startup so first task is fast."""
+    try:
+        from services.face_engine import FaceEngine
+        FaceEngine.get_instance()
+        logger.info("FaceEngine pre-warmed successfully at worker startup.")
+    except Exception as e:
+        logger.warning(f"FaceEngine pre-warm failed (will retry on first task): {e}")
 
 
 @celery_app.task(
@@ -63,6 +75,13 @@ def extract_faces(self, photo_id_str: str) -> dict:
             raw_bytes, str(event_id), str(photo_id)
         )
 
+        import io
+        from PIL import Image
+        from services.hashing import phash_dct, dhash
+        web_img = Image.open(io.BytesIO(web_bytes))
+        phash_val = phash_dct(web_img)
+        dhash_val = dhash(web_img)
+
         web_key = f"events/{event_id}/photos/{photo_id}/web.jpg"
         thumb_key = f"events/{event_id}/photos/{photo_id}/thumb.jpg"
         storage.put(web_key, web_bytes)
@@ -93,6 +112,13 @@ def extract_faces(self, photo_id_str: str) -> dict:
                 yaw=face_data["yaw"],
                 pitch=face_data["pitch"],
                 roll=face_data["roll"],
+                sharpness_score=face_data.get("sharpness_score"),
+                eye_open_score=face_data.get("eye_open_score"),
+                smile_score=face_data.get("smile_score"),
+                frontality_score=face_data.get("frontality_score"),
+                exposure_score=face_data.get("exposure_score"),
+                composite_quality=face_data.get("composite_quality"),
+                scored_at=datetime.now(timezone.utc),
                 is_matchable=face_data["is_matchable"],
                 quality_flags=face_data["quality_flags"],
                 crop_key=crop_key,
@@ -103,19 +129,22 @@ def extract_faces(self, photo_id_str: str) -> dict:
         # Mark photo processed
         photo = db.query(Photo).filter(Photo.id == photo_id).first()
         if photo:
-            photo.status = "processed"
-            photo.web_key = web_key
-            photo.thumb_key = thumb_key
-            photo.width = web_w
-            photo.height = web_h
+            photo.status = "processed"  # type: ignore
+            photo.web_key = web_key  # type: ignore
+            photo.thumb_key = thumb_key  # type: ignore
+            photo.width = web_w  # type: ignore
+            photo.height = web_h  # type: ignore
             if exif_taken_at and not photo.exif_taken_at:
                 try:
-                    photo.exif_taken_at = datetime.fromisoformat(exif_taken_at)
+                    photo.exif_taken_at = datetime.fromisoformat(exif_taken_at)  # type: ignore
                 except Exception:
                     pass
-            photo.face_count = faces_created
-            photo.processed_at = datetime.now(timezone.utc)
-            photo.processing_error = None
+            photo.face_count = faces_created  # type: ignore
+            photo.processed_at = datetime.now(timezone.utc)  # type: ignore
+            photo.processing_error = None  # type: ignore
+            photo.phash = phash_val  # type: ignore
+            photo.dhash = dhash_val  # type: ignore
+            photo.hash_computed_at = datetime.now(timezone.utc)  # type: ignore
 
         db.commit()
 
@@ -137,10 +166,10 @@ def extract_faces(self, photo_id_str: str) -> dict:
             photo = db.query(Photo).filter(Photo.id == photo_id).first()
             if photo:
                 if photo.attempts >= 3:
-                    photo.status = "failed"
+                    photo.status = "failed"  # type: ignore
                 else:
-                    photo.status = "failed"  # will be requeued by beat if attempts < 3
-                photo.processing_error = str(e)
+                    photo.status = "failed"  # type: ignore
+                photo.processing_error = str(e)  # type: ignore
                 db.commit()
         except Exception:
             pass

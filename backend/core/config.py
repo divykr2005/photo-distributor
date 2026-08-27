@@ -36,9 +36,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     
-    # Google OAuth
+    # Google OAuth & Drive
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
+    GOOGLE_DRIVE_API_KEY: str | None = None
 
     # Redis / Celery
     REDIS_URL: str = "redis://localhost:6379/0"

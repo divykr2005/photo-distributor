@@ -8,34 +8,36 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className = "", label, error, id, ...props }, ref) => {
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 group">
         {label && (
           <label
             htmlFor={id}
-            className="block text-sm font-medium text-slate-300"
+            className="block text-sm font-medium text-zinc-300 group-focus-within:text-indigo-400 transition-colors duration-200"
           >
             {label}
           </label>
         )}
-        <input
-          ref={ref}
-          id={id}
-          className={`
-            w-full px-4 py-2.5 rounded-xl text-sm text-white
-            bg-slate-800/50 border transition-all duration-200
-            placeholder:text-slate-500
-            focus:outline-none focus:ring-2 focus:ring-offset-0
-            ${
-              error
-                ? "border-rose-500/50 focus:ring-rose-500/30 focus:border-rose-500"
-                : "border-slate-700/50 focus:ring-violet-500/30 focus:border-violet-500"
-            }
-            ${className}
-          `}
-          {...props}
-        />
+        <div className="relative">
+          <input
+            ref={ref}
+            id={id}
+            className={`
+              w-full px-4 py-2.5 rounded-xl text-sm text-white
+              bg-zinc-900/60 border backdrop-blur-sm transition-all duration-300
+              placeholder:text-zinc-600
+              focus:outline-none focus:ring-4 focus:ring-offset-0 focus:bg-zinc-900
+              ${
+                error
+                  ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500"
+                  : "border-zinc-800/80 focus:ring-indigo-500/20 focus:border-indigo-500 hover:border-zinc-700"
+              }
+              ${className}
+            `}
+            {...props}
+          />
+        </div>
         {error && (
-          <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+          <p className="text-xs text-red-400 flex items-center gap-1 mt-1 animate-in">
             <svg
               className="w-3.5 h-3.5 flex-shrink-0"
               fill="currentColor"

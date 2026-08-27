@@ -57,17 +57,17 @@ export default function LoginPage() {
     <div className="animate-in">
       {/* Logo */}
       <div className="text-center mb-8">
-        <div className="inline-flex p-3 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-2xl shadow-violet-500/30 mb-4">
-          <HiOutlineCamera className="w-8 h-8 text-white" />
+        <div className="inline-flex p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 shadow-xl shadow-indigo-500/10 mb-4">
+          <HiOutlineCamera className="w-8 h-8 text-indigo-400" />
         </div>
-        <h1 className="text-2xl font-bold text-white">Welcome back</h1>
-        <p className="text-sm text-slate-400 mt-1">
+        <h1 className="text-2xl font-bold text-zinc-100">Welcome back</h1>
+        <p className="text-sm text-zinc-400 mt-1">
           Sign in to your PhotoDistro account
         </p>
       </div>
 
       {/* Form card */}
-      <div className="bg-slate-800/30 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 shadow-2xl shadow-black/30">
+      <div className="glass-panel rounded-2xl p-8 shadow-2xl">
         {error && (
           <div className="mb-6">
             <Toast message={error} type="error" onClose={() => setError(null)} />
@@ -85,7 +85,7 @@ export default function LoginPage() {
               error={errors.email?.message}
               {...register("email")}
             />
-            <HiOutlineMail className="absolute right-3 top-9 w-5 h-5 text-slate-500 pointer-events-none" />
+            <HiOutlineMail className="absolute right-3 top-9 w-5 h-5 text-zinc-500 pointer-events-none" />
           </div>
 
           <div className="relative">
@@ -98,7 +98,7 @@ export default function LoginPage() {
               error={errors.password?.message}
               {...register("password")}
             />
-            <HiOutlineLockClosed className="absolute right-3 top-9 w-5 h-5 text-slate-500 pointer-events-none" />
+            <HiOutlineLockClosed className="absolute right-3 top-9 w-5 h-5 text-zinc-500 pointer-events-none" />
           </div>
 
           <Button
@@ -112,20 +112,20 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6 flex items-center gap-3">
-          <div className="h-px flex-1 bg-slate-700/50"></div>
-          <span className="text-xs text-slate-500 font-medium">OR</span>
-          <div className="h-px flex-1 bg-slate-700/50"></div>
+          <div className="h-px flex-1 bg-zinc-800"></div>
+          <span className="text-xs text-zinc-500 font-medium">OR</span>
+          <div className="h-px flex-1 bg-zinc-800"></div>
         </div>
 
         <div className="mt-6">
           <GoogleLoginButton />
         </div>
 
-        <p className="text-center text-sm text-slate-400 mt-6">
+        <p className="text-center text-sm text-zinc-400 mt-6">
           Don&apos;t have an account?{" "}
           <Link
             href="/register"
-            className="text-violet-400 hover:text-violet-300 font-medium transition-colors"
+            className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
           >
             Create one
           </Link>

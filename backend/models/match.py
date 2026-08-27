@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, Float, String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Float, String, DateTime, ForeignKey, UniqueConstraint, Index, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, backref
 
@@ -41,8 +41,13 @@ class Match(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
+    # Day 23: Best-of-Burst Ranking
+    cluster_rank = Column(Integer, nullable=True)
+    ranked_at = Column(DateTime(timezone=True), nullable=True)
+
     __table_args__ = (
         UniqueConstraint('photo_face_id', name='uq_matches_photo_face_id'),
+        Index('ix_matches_gallery', guest_id, status, cluster_rank, similarity.desc()),
     )
 
     event = relationship("Event", backref=backref("match_records", cascade="all, delete-orphan"))

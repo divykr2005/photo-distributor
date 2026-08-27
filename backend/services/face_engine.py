@@ -4,8 +4,17 @@ import math
 import logging
 import cv2
 import numpy as np
+from datetime import datetime
 from PIL import Image, ImageOps
 from typing import List, Tuple, Dict, Any, Optional
+from services.face_quality import (
+    sharpness_score,
+    eye_open_score,
+    smile_score,
+    frontality_score,
+    exposure_score,
+    compute_composite,
+)
 
 try:
     from pillow_heif import register_heif_opener
@@ -66,13 +75,13 @@ class FaceEngine:
         # EXIF datetime extraction
         exif_taken_at = None
         try:
-            exif_data = PIL_Image._getexif()
+            exif_data = PIL_Image.getexif()
             if exif_data:
                 # 36867 is DateTimeOriginal, 306 is DateTime
                 date_str = exif_data.get(36867) or exif_data.get(306)
                 if date_str and isinstance(date_str, str):
                     try:
-                        dt = cv2.strptime(date_str, "%Y:%m:%d %H:%M:%S")
+                        dt = datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
                         exif_taken_at = dt.isoformat()
                     except Exception:
                         pass
@@ -133,7 +142,7 @@ class FaceEngine:
             emb_list = emb.tolist()
 
             # Quality metrics
-            face_area_ratio = float((w_px * h_px) / (web_w * web_h))
+            face_area_ratio = (w_px * h_px) / (web_w * web_h)
 
             # Crop face area for blur calculation
             ix1 = max(0, int(x1))
@@ -152,6 +161,17 @@ class FaceEngine:
             yaw = pitch = roll = 0.0
             if hasattr(face, "pose") and face.pose is not None and len(face.pose) >= 3:
                 pitch, yaw, roll = float(face.pose[0]), float(face.pose[1]), float(face.pose[2])
+
+            landmarks_2d106 = face.landmark_2d_106 if hasattr(face, "landmark_2d_106") else None
+            
+            # W4.D23: new quality sub-scores
+            sh_score = sharpness_score(web_bgr, (x1, y1, x2, y2))
+            eo_score = eye_open_score(landmarks_2d106)
+            sm_score = smile_score(landmarks_2d106)
+            fr_score = frontality_score(yaw, pitch, roll)
+            ex_score = exposure_score(web_bgr, (x1, y1, x2, y2))
+            
+            composite = compute_composite(sh_score, eo_score, fr_score, ex_score, sm_score)
 
             # Quality evaluation & flags
             quality_flags = []
@@ -180,7 +200,7 @@ class FaceEngine:
             crop_pil.save(crop_io, format="JPEG", quality=82)
             crop_bytes = crop_io.getvalue()
 
-            overall_quality = round(float(det_score * min(1.0, blur_score / 100.0)), 4)
+            overall_quality = round(composite, 4)
 
             detected_faces.append({
                 "bbox_x": bbox_x,
@@ -195,6 +215,12 @@ class FaceEngine:
                 "yaw": round(yaw, 2),
                 "pitch": round(pitch, 2),
                 "roll": round(roll, 2),
+                "sharpness_score": round(sh_score, 4),
+                "eye_open_score": round(eo_score, 4),
+                "smile_score": round(sm_score, 4),
+                "frontality_score": round(fr_score, 4),
+                "exposure_score": round(ex_score, 4),
+                "composite_quality": round(composite, 4),
                 "is_matchable": is_matchable,
                 "quality_flags": quality_flags,
                 "crop_bytes": crop_bytes,
@@ -233,5 +259,5 @@ class FaceEngine:
         if norm > 0:
             emb = emb / norm
             
-        overall_quality = round(float(det_score * min(1.0, blur_score / 100.0)), 4)
+        overall_quality = round(det_score * min(1.0, blur_score / 100.0), 4)
         return emb.tolist(), overall_quality

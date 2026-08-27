@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, UniqueConstraint, BigInteger, Boolean, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
 
@@ -37,6 +37,13 @@ class Photo(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     processed_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    phash = Column(BigInteger, nullable=True)
+    dhash = Column(BigInteger, nullable=True)
+    hash_computed_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    dup_cluster_id = Column(UUID(as_uuid=True), ForeignKey("photo_clusters.id", ondelete="SET NULL"), nullable=True, index=True)
+    is_cluster_representative = Column(Boolean, default=False)
+    storage_tier = Column(Enum("local", "s3", name="storage_tier_enum"), default="local", index=True)
 
     __table_args__ = (
         UniqueConstraint('event_id', 'content_hash', name='uq_photos_event_content_hash'),
