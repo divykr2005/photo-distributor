@@ -41,8 +41,8 @@ class FaceEngine:
         import insightface
         from insightface.app import FaceAnalysis
 
-        model_name = os.getenv("INSIGHTFACE_MODEL", "buffalo_l")
-        det_size_val = int(os.getenv("INSIGHTFACE_DET_SIZE", "640"))
+        model_name = os.getenv("INSIGHTFACE_MODEL", "buffalo_s")
+        det_size_val = int(os.getenv("INSIGHTFACE_DET_SIZE", "320"))
         
         logger.info(f"Initializing InsightFace FaceEngine with model={model_name}, det_size={det_size_val}")
         self.app = FaceAnalysis(name=model_name, providers=['CPUExecutionProvider'])
