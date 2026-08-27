@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey, Boolean, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, backref, deferred
 
@@ -10,7 +10,7 @@ try:
     from pgvector.sqlalchemy import Vector
     VECTOR_AVAILABLE = True
 except ImportError:
-    from sqlalchemy import Text
+    Vector = None  # type: ignore
     VECTOR_AVAILABLE = False
 
 
@@ -29,7 +29,7 @@ class PhotoFace(Base):
     det_score = Column(Float, nullable=False)
 
     # Defer loading embedding vector by default so standard queries don't pull 51MB into RAM
-    embedding = deferred(Column(Vector(512) if VECTOR_AVAILABLE else Text, nullable=False))
+    embedding = deferred(Column(Vector(512) if VECTOR_AVAILABLE else Text, nullable=False))  # type: ignore
     model_version = Column(String(100), nullable=False, default="buffalo_l")
     embedding_dim = Column(Integer, nullable=False, default=512)
 
@@ -39,6 +39,17 @@ class PhotoFace(Base):
     yaw = Column(Float, nullable=True)
     pitch = Column(Float, nullable=True)
     roll = Column(Float, nullable=True)
+
+    # Day 23: New Quality Scoring
+    sharpness_score = Column(Float, nullable=True)
+    eye_open_score = Column(Float, nullable=True)
+    smile_score = Column(Float, nullable=True)
+    frontality_score = Column(Float, nullable=True)
+    exposure_score = Column(Float, nullable=True)
+    composite_quality = Column(Float, nullable=True)
+    scoring_model_version = Column(String(100), nullable=True)
+    scored_at = Column(DateTime(timezone=True), nullable=True)
+    erasure_redacted = Column(Boolean, nullable=False, default=False)
 
     is_matchable = Column(Boolean, nullable=False, default=True)
     quality_flags = Column(JSONB, nullable=True)

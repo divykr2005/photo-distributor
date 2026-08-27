@@ -59,21 +59,8 @@ def generate_guest_zip(zip_archive_id: str):
         archive.processed_bytes = 0
 
         storage = get_storage_backend()
-        file_items = []
-        total_bytes = 0
-
-        for i, photo in enumerate(ordered_photos, start=1):
-            file_path = storage.get_path(str(photo.storage_key))
-            if file_path and os.path.exists(file_path):
-                fsize = os.path.getsize(file_path)
-                total_bytes += fsize
-                ext = photo.original_filename.rsplit(".", 1)[-1] if (photo.original_filename and "." in photo.original_filename) else "jpg"
-                arc_name = f"photo_{i:04d}_{str(photo.id)[:8]}.{ext}"
-                file_items.append((file_path, arc_name, fsize))
-
-        archive.total_bytes = total_bytes
-        db.commit()
-
+        
+        # Determine paths
         storage_root = getattr(storage, "root_dir", None) or os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads"
         )
@@ -83,23 +70,35 @@ def generate_guest_zip(zip_archive_id: str):
         final_zip_path = os.path.join(zip_dir, f"guest_{archive.guest_id}_{archive.id}.zip")
         temp_zip_path = f"{final_zip_path}.tmp"
 
-        try:
-            import pyzipper  # type: ignore
-            zf = pyzipper.AESZipFile(temp_zip_path, "w", compression=pyzipper.ZIP_STORED, encryption=pyzipper.WZ_AES)
-            zf.setpassword(b"secret") # ponytail: hardcoded secret, pass from UI when needed
-        except ImportError:
-            zf = zipfile.ZipFile(temp_zip_path, "w", compression=zipfile.ZIP_STORED)
+        zf = zipfile.ZipFile(temp_zip_path, "w", compression=zipfile.ZIP_STORED)
 
         with zf:
             processed_bytes = 0
-            for idx, (fpath, arc_name, fsize) in enumerate(file_items, start=1):
-                zf.write(fpath, arcname=arc_name)
-                processed_bytes += fsize
+            for idx, photo in enumerate(ordered_photos, start=1):
+                data = None
+                for key_attr in ("storage_key", "web_key", "thumb_key"):
+                    k = getattr(photo, key_attr, None)
+                    if k:
+                        data = storage.get(str(k))
+                        if data:
+                            break
+                            
+                if data:
+                    ext = photo.original_filename.rsplit(".", 1)[-1] if (photo.original_filename and "." in photo.original_filename) else "jpg"
+                    arc_name = f"photo_{idx:04d}_{str(photo.id)[:8]}.{ext}"
+                    
+                    zf.writestr(arc_name, data)
+                    fsize = len(data)
+                    processed_bytes += fsize
 
                 archive.processed_photos = idx
                 archive.processed_bytes = processed_bytes
                 archive.updated_at = datetime.now(timezone.utc)
                 db.commit()
+
+        # Update total bytes
+        archive.total_bytes = processed_bytes
+        db.commit()
 
         if os.path.exists(final_zip_path):
             os.remove(final_zip_path)

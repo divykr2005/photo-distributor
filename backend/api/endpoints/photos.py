@@ -322,3 +322,43 @@ def bulk_delete_photos(
     for key in keys_to_delete:
         if key:
             storage.delete(str(key))
+
+import re
+
+class DriveImportRequest(BaseModel):
+    drive_url: str
+
+@router.post("/events/{event_id}/photos/import-drive", status_code=202)
+def import_photos_from_drive(
+    event_id: UUID,
+    req: DriveImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _verify_event_owner(db, event_id, current_user.id)  # type: ignore
+    
+    # Extract folder ID from URL
+    match = re.search(r'/folders/([a-zA-Z0-9_-]+)', req.drive_url)
+    if not match:
+        raise HTTPException(status_code=400, detail="Invalid Google Drive folder URL. Make sure it contains '/folders/'")
+        
+    folder_id = match.group(1)
+    
+    # Create an upload batch
+    batch = UploadBatch(
+        event_id=event_id,
+        created_by=current_user.id,
+        total_files=0, # Will be updated by the task
+        received_files=0,
+        duplicate_files=0,
+        rejected_files=0,
+        status="active",
+    )
+    db.add(batch)
+    db.commit()
+    db.refresh(batch)
+    
+    from worker.tasks import import_drive_photos_task
+    import_drive_photos_task.delay(str(event_id), folder_id, str(current_user.id), str(batch.id))
+    
+    return {"message": "Drive import started", "batch_id": str(batch.id)}

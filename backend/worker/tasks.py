@@ -153,3 +153,107 @@ def cluster_duplicates_task(self, event_id_str: str) -> dict:
     finally:
         db.close()
         r.delete(lock_name)
+
+
+@celery_app.task(name="worker.tasks.import_drive_photos_task", bind=True)
+def import_drive_photos_task(self, event_id_str: str, folder_id: str, user_id_str: str, batch_id_str: str) -> dict:
+    from googleapiclient.discovery import build
+    from database.session import SessionLocal
+    from models.photo import Photo
+    from models.upload_batch import UploadBatch
+    from core.config import settings
+    from services.storage import get_storage_backend
+    import uuid
+    import hashlib
+    import io
+    
+    if not settings.GOOGLE_DRIVE_API_KEY:
+        logger.error("GOOGLE_DRIVE_API_KEY is not configured")
+        return {"status": "error", "reason": "No API key"}
+
+    try:
+        service = build('drive', 'v3', developerKey=settings.GOOGLE_DRIVE_API_KEY)
+    except Exception as e:
+        logger.error(f"Failed to build drive service: {e}")
+        return {"status": "error", "reason": str(e)}
+
+    db = SessionLocal()
+    storage = get_storage_backend()
+    processed_count = 0
+
+    try:
+        query = f"'{folder_id}' in parents and mimeType contains 'image/' and trashed = false"
+        results = service.files().list(q=query, pageSize=1000, fields="nextPageToken, files(id, name, mimeType, size)").execute()
+        items = results.get('files', [])
+
+        batch = db.query(UploadBatch).filter(UploadBatch.id == batch_id_str).first()
+        if batch:
+            batch.total_files = len(items)
+            db.commit()
+
+        for item in items:
+            try:
+                request = service.files().get_media(fileId=item['id'])
+                file_bytes = request.execute()
+                
+                content_hash = hashlib.sha256(file_bytes).hexdigest()
+                
+                existing_photo = (
+                    db.query(Photo)
+                    .filter(Photo.event_id == event_id_str, Photo.content_hash == content_hash)
+                    .first()
+                )
+                
+                if existing_photo:
+                    if batch:
+                        batch.duplicate_files = batch.duplicate_files + 1  # type: ignore
+                        batch.received_files = batch.received_files + 1  # type: ignore
+                        db.commit()
+                    continue
+
+                photo_id = uuid.uuid4()
+                original_filename = item.get('name', 'drive_photo.jpg')
+                ext = original_filename.rsplit(".", 1)[-1].lower() if "." in original_filename else "jpg"
+                storage_key = f"events/{event_id_str}/photos/{photo_id}/original.{ext}"
+                
+                storage.put(storage_key, io.BytesIO(file_bytes))
+
+                photo = Photo(
+                    id=photo_id,
+                    event_id=event_id_str,
+                    batch_id=batch_id_str,
+                    uploaded_by=user_id_str,
+                    original_filename=original_filename,
+                    storage_key=storage_key,
+                    content_hash=content_hash,
+                    mime_type=item.get('mimeType', 'image/jpeg'),
+                    file_size=len(file_bytes),
+                    status="pending",
+                    attempts=0,
+                )
+                db.add(photo)
+                if batch:
+                    batch.received_files = batch.received_files + 1  # type: ignore
+                db.commit()
+                
+                from workers.faces import extract_faces
+                extract_faces.delay(str(photo_id))
+                
+                processed_count += 1
+                
+            except Exception as e:
+                logger.error(f"Error processing drive file {item['id']}: {e}")
+                if batch:
+                    batch.failed_files = batch.failed_files + 1  # type: ignore
+                    db.commit()
+
+        if batch:
+            batch.status = "completed"
+            db.commit()
+            
+        return {"status": "completed", "processed": processed_count}
+    except Exception as e:
+        logger.error(f"Drive import task failed: {e}")
+        return {"status": "error", "reason": str(e)}
+    finally:
+        db.close()

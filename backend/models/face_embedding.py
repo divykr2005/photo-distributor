@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, ForeignKey
+from sqlalchemy import Column, DateTime, Float, Integer, String, ForeignKey, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
 
@@ -25,7 +25,7 @@ class FaceEmbedding(Base):
         nullable=False,
         index=True,
     )
-    embedding = Column(Vector(512) if VECTOR_AVAILABLE else Text, nullable=False)
+
     model_version = Column(String(100), nullable=False, default="ArcFace")
     embedding_dim = Column(Integer, nullable=False, default=512)
     quality_score = Column(Float, nullable=True)
@@ -38,5 +38,9 @@ class FaceEmbedding(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+    embedding_enc = Column(LargeBinary, nullable=True)
+    enc_nonce = Column(LargeBinary, nullable=True)
+    enc_key_id = Column(String(100), nullable=True)
 
     guest = relationship("Guest", backref=backref("face_embeddings", cascade="all, delete-orphan"))

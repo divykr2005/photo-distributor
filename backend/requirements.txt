@@ -26,3 +26,6 @@ flower>=2.0.0
 pyzipper==0.3.6
 authlib
 httpx
+boto3>=1.34.0
+cachetools
+google-api-python-client

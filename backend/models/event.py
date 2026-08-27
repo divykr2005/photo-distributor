@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, String, Text, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
 
@@ -42,6 +42,9 @@ class Event(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+    wrapped_kek = Column(LargeBinary, nullable=True)
+    kek_key_id = Column(String(100), nullable=True)
 
     match_threshold = Column(Float, nullable=True)
     review_floor = Column(Float, nullable=True)

@@ -11,12 +11,21 @@ class EventRepository:
         self.db = db
 
     def create(self, event_in: EventCreate, user_id: UUID) -> Event:
+        from services.crypto.envelope import generate_key, wrap_key, get_master_key
+        
+        kek = generate_key()
+        master_key = get_master_key()
+        wrapped_kek, nonce = wrap_key(kek, master_key)
+        kek_blob = nonce + wrapped_kek
+        
         db_event = Event(
             title=event_in.title,
             description=event_in.description,
             location=event_in.location,
             date=event_in.date,
             created_by=user_id,
+            wrapped_kek=kek_blob,
+            kek_key_id="local",
         )
         self.db.add(db_event)
         self.db.commit()

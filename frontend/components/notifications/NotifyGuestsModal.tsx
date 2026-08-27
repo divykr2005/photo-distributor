@@ -224,10 +224,10 @@ export default function NotifyGuestsModal({
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {[
                     { id: "console", label: "Console Log", desc: "Dev Mode" },
-                    { id: "email", label: "Email", desc: "SMTP Magic Link" },
+                    { id: "smtp", label: "Email", desc: "SMTP Magic Link" },
                     { id: "webhook", label: "Webhook", desc: "HTTP Event" },
-                    { id: "sms", label: "SMS", desc: "Twilio SMS" },
-                    { id: "whatsapp", label: "WhatsApp", desc: "Twilio WA" },
+                    { id: "twilio_sms", label: "SMS", desc: "Twilio SMS" },
+                    { id: "twilio_whatsapp", label: "WhatsApp", desc: "Twilio WA" },
                   ].map((ch) => (
                     <button
                       key={ch.id}
@@ -318,9 +318,9 @@ export default function NotifyGuestsModal({
                       <input
                         type="text"
                         placeholder={
-                          channel === "email"
+                          channel === "smtp"
                             ? "test@example.com"
-                            : channel === "sms" || channel === "whatsapp"
+                            : channel === "twilio_sms" || channel === "twilio_whatsapp"
                             ? "+1234567890"
                             : "Console / Webhook URL"
                         }

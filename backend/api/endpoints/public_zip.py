@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,7 @@ from api.endpoints.public import _validate_access_code
 from models.zip_archive import ZipArchive, ZipStatus
 from services.storage import get_storage_backend
 from services.visibility import visible_photo_ids
+from core.celery_app import celery_app
 from workers.zip_worker import generate_guest_zip
 
 router = APIRouter()
@@ -57,6 +58,7 @@ from middleware.rate_limit import limiter, get_token_from_request
 def request_guest_zip(
     request: Request,
     token: str,
+    best_only: bool = Query(False, description="If true, include only the best photos of burst (cluster_rank=1)."),
     db: Session = Depends(get_db),
 ):
     """
@@ -76,14 +78,15 @@ def request_guest_zip(
             content={"detail": "Disk watermark exceeded (storage above 80%). Please try again later."},
         )
 
-    photo_ids = visible_photo_ids(db, UUID(str(guest.id)))
+    photo_ids = visible_photo_ids(db, UUID(str(guest.id)), best_only=best_only)
     if not photo_ids:
         raise HTTPException(status_code=404, detail="No photos available for download")
 
     if len(photo_ids) > 1000:
         raise HTTPException(status_code=400, detail="Archive photo count exceeds limit (max 1000 photos)")
 
-    match_set_hash = hashlib.sha256(",".join(sorted(str(pid) for pid in photo_ids)).encode("utf-8")).hexdigest()
+    hash_str = f"{best_only}:" + ",".join(sorted(str(pid) for pid in photo_ids))
+    match_set_hash = hashlib.sha256(hash_str.encode("utf-8")).hexdigest()
     now = datetime.now(timezone.utc)
 
     # 1. Cache hit check
@@ -147,10 +150,11 @@ def request_guest_zip(
 
     # Dispatch background worker
     try:
-        task_fn: Any = generate_guest_zip
-        task_fn.delay(str(archive.id))
-    except Exception:
+        celery_app.send_task("workers.zip.generate_guest_zip", args=[str(archive.id)])
+    except Exception as e:
         # Fallback if Celery broker is offline in simple test mode: call task function directly
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to dispatch to celery, running inline: {e}")
         generate_guest_zip(str(archive.id))
         db.refresh(archive)
 

@@ -67,4 +67,9 @@ class LocalStorage(StorageBackend):
 
 
 def get_storage_backend() -> StorageBackend:
+    backend = os.environ.get("STORAGE_BACKEND", "local").lower()
+    if backend == "r2":
+        from services.storage.r2 import R2Storage
+        return R2Storage()
+    # default: local filesystem
     return LocalStorage()

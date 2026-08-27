@@ -13,6 +13,23 @@ class GuestRepository:
         self.db = db
 
     def create(self, guest_in: GuestCreate) -> Guest:
+        from services.crypto.envelope import generate_key, wrap_key, get_or_unwrap_kek
+        from models.event import Event
+        
+        # Get event KEK
+        event = self.db.query(Event).filter(Event.id == guest_in.event_id).first()
+        if event and event.wrapped_kek:
+            kek_blob = event.wrapped_kek # type: ignore
+            kek_nonce, kek_wrapped = kek_blob[:12], kek_blob[12:]
+            import typing
+            kek = get_or_unwrap_kek(str(event.id), typing.cast(bytes, kek_wrapped), typing.cast(bytes, kek_nonce))
+            
+            dek = generate_key()
+            wrapped_dek, dek_nonce = wrap_key(dek, kek)
+            dek_blob = dek_nonce + wrapped_dek
+        else:
+            dek_blob = None
+        
         db_guest = Guest(
             event_id=guest_in.event_id,
             first_name=guest_in.first_name,
@@ -22,6 +39,8 @@ class GuestRepository:
             gender=guest_in.gender,
             notes=guest_in.notes,
             consent_given_at=datetime.now(timezone.utc),
+            wrapped_dek=dek_blob,
+            dek_key_id="local",
         )
         self.db.add(db_guest)
         self.db.commit()
@@ -90,7 +109,7 @@ class GuestRepository:
         return guest
 
     def update_image(self, guest: Guest, image_path: str) -> Guest:
-        guest.image_path = image_path
+        guest.image_path = image_path # type: ignore
         self.db.commit()
         self.db.refresh(guest)
         return guest
@@ -105,7 +124,7 @@ class GuestRepository:
         """
         guest = self.get_by_id(guest_id)
         if guest:
-            guest.embedding_status = status
+            guest.embedding_status = status # type: ignore
             self.db.commit()
             self.db.refresh(guest)
         return guest

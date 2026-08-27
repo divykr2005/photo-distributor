@@ -14,6 +14,7 @@ celery_app = Celery(
         "workers.maintenance",
         "workers.zip_worker",
         "workers.notifications",
+        "worker.tasks",
     ]
 )
 
@@ -35,6 +36,7 @@ celery_app.conf.update(
         "workers.matching.*": {"queue": "match"},
         "workers.maintenance.*": {"queue": "maintenance"},
         "workers.zip.*": {"queue": "maintenance"},
+        "worker.tasks.*": {"queue": "maintenance"},
     },
     beat_schedule={
         "check-dirty-events-every-30s": {

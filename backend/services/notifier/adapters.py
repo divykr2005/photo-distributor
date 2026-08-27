@@ -85,7 +85,7 @@ class SmtpNotifier(BaseNotifier):
                 provider="smtp",
                 provider_message_id=msg_id,
             )
-        except (smtplib.SMTPTransientError, TimeoutError, OSError) as e:
+        except (smtplib.SMTPException, TimeoutError, OSError) as e:
             logger.error(f"[SMTP NOTIFIER] Transient error sending to {recipient}: {e}")
             return NotificationResult(
                 success=False,

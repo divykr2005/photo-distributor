@@ -115,9 +115,32 @@ def get_notification_status(
         elif st == NotificationStatus.SKIPPED_DUPLICATE.value:
             summary.skipped_duplicate += 1
 
+    log_items = []
+    for l in logs:
+        log_items.append(
+            NotificationLogItem(
+                id=l.id,  # type: ignore
+                guest_id=l.guest_id,  # type: ignore
+                event_id=l.event_id,  # type: ignore
+                channel=l.channel,  # type: ignore
+                notification_type=l.notification_type,  # type: ignore
+                dedupe_key=l.dedupe_key,  # type: ignore
+                status=l.status,  # type: ignore
+                provider=l.provider,  # type: ignore
+                provider_message_id=l.provider_message_id,  # type: ignore
+                error=l.error,  # type: ignore
+                error_message=l.error,  # type: ignore
+                guest_name=l.guest.first_name if l.guest else "Unknown",  # type: ignore
+                attempts=l.attempts,  # type: ignore
+                next_retry_at=l.next_retry_at,  # type: ignore
+                sent_at=l.sent_at,  # type: ignore
+                created_at=l.created_at,  # type: ignore
+            )
+        )
+
     return NotificationStatusResponse(
         summary=summary,
-        logs=[NotificationLogItem.model_validate(l) for l in logs],
+        logs=log_items,
     )
 
 
@@ -139,8 +162,8 @@ def send_test_notification(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     subject, text_body, html_body = render_email_template(
-        guest_name=current_user.name or "Organizer",
-        event_title=event.title,
+        guest_name=current_user.name or "Organizer", # type: ignore
+        event_title=event.title, # type: ignore
         photo_count=12,
         magic_link="http://localhost:3000/g/test_token_preview",
         opt_out_link="http://localhost:3000/api/v1/public/opt-out?guest_id=test",
@@ -188,7 +211,7 @@ def guest_opt_out(
     if not guest:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guest record not found")
 
-    guest.notify_opt_out_at = datetime.now(timezone.utc)
+    guest.notify_opt_out_at = datetime.now(timezone.utc) # type: ignore
     db.commit()
 
     return """<!DOCTYPE html>

@@ -18,31 +18,33 @@ export default function Card({
   return (
     <div
       className={`
-        rounded-2xl border transition-all duration-300
+        rounded-2xl border transition-all duration-300 relative overflow-hidden
         ${
           gradient
-            ? "bg-gradient-to-br from-slate-800/80 to-slate-900/80 border-slate-700/50 shadow-xl shadow-black/20"
-            : "bg-slate-800/40 border-slate-700/30 hover:border-slate-600/50"
+            ? "glass-panel bg-gradient-to-br from-zinc-900/90 to-zinc-950/90 shadow-2xl shadow-indigo-500/5"
+            : "glass-card"
         }
-        backdrop-blur-sm
         ${className}
       `}
     >
+      {/* Subtle top highlight for depth */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-zinc-400/10 to-transparent"></div>
+      
       {(title || icon) && (
-        <div className="flex items-center gap-3 px-6 pt-5 pb-2">
+        <div className="flex items-center gap-3 px-6 pt-6 pb-3">
           {icon && (
-            <div className="p-2 rounded-lg bg-slate-700/50 text-violet-400">
+            <div className="p-2 rounded-xl bg-zinc-800/80 border border-zinc-700/50 text-indigo-400 shadow-inner">
               {icon}
             </div>
           )}
           {title && (
-            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+            <h3 className="text-sm font-semibold text-zinc-300 tracking-wide">
               {title}
             </h3>
           )}
         </div>
       )}
-      <div className="px-6 py-4">{children}</div>
+      <div className="px-6 py-5 relative z-10">{children}</div>
     </div>
   );
 }

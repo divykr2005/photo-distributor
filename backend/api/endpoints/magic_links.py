@@ -57,7 +57,7 @@ def _generate_token(
     )
     now = datetime.now(timezone.utc)
     for tok in existing:
-        tok.revoked_at = now
+        tok.revoked_at = now # type: ignore
 
     # D17: generate plaintext — returned exactly once
     plaintext = secrets.token_urlsafe(TOKEN_BYTES)
@@ -100,23 +100,23 @@ def generate_magic_link(
     current_user: User = Depends(get_current_user),
 ):
     """Generate or rotate a magic link for a guest. Returns plaintext once."""
-    event = _get_event_owned_by(db, event_id, current_user.id)
+    event = _get_event_owned_by(db, event_id, current_user.id) # type: ignore
 
     guest = db.query(Guest).filter(Guest.id == guest_id, Guest.event_id == event_id).first()
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
 
-    token_row, plaintext = _generate_token(db, guest, event, current_user.id)
+    token_row, plaintext = _generate_token(db, guest, event, current_user.id) # type: ignore
     db.commit()
     db.refresh(token_row)
 
     portal_url = f"{settings.FRONTEND_URL}/g/{plaintext}"
 
     return MagicLinkResponse(
-        guest_id=guest.id,
+        guest_id=guest.id, # type: ignore
         access_code=plaintext,
         portal_url=portal_url,
-        expires_at=token_row.expires_at,
+        expires_at=token_row.expires_at, # type: ignore
     )
 
 
@@ -132,7 +132,7 @@ def bulk_generate_magic_links(
     current_user: User = Depends(get_current_user),
 ):
     """Generate magic links for all guests missing a live token."""
-    event = _get_event_owned_by(db, event_id, current_user.id)
+    event = _get_event_owned_by(db, event_id, current_user.id) # type: ignore
 
     guests = db.query(Guest).filter(Guest.event_id == event_id).all()
 
@@ -156,14 +156,14 @@ def bulk_generate_magic_links(
             skipped += 1
             continue
 
-        token_row, plaintext = _generate_token(db, guest, event, current_user.id)
+        token_row, plaintext = _generate_token(db, guest, event, current_user.id) # type: ignore
         generated += 1
         links.append(
             MagicLinkResponse(
-                guest_id=guest.id,
+                guest_id=guest.id, # type: ignore
                 access_code=plaintext,
                 portal_url=f"{settings.FRONTEND_URL}/g/{plaintext}",
-                expires_at=token_row.expires_at,
+                expires_at=token_row.expires_at, # type: ignore
             )
         )
 
@@ -189,7 +189,7 @@ def revoke_magic_link(
     current_user: User = Depends(get_current_user),
 ):
     """Revoke all live tokens for a guest."""
-    _get_event_owned_by(db, event_id, current_user.id)
+    _get_event_owned_by(db, event_id, current_user.id) # type: ignore
 
     guest = db.query(Guest).filter(Guest.id == guest_id, Guest.event_id == event_id).first()
     if not guest:
@@ -205,7 +205,7 @@ def revoke_magic_link(
         .all()
     )
     for tok in live_tokens:
-        tok.revoked_at = now
+        tok.revoked_at = now # type: ignore
 
     db.commit()
 
@@ -223,7 +223,7 @@ def get_magic_link_info(
     current_user: User = Depends(get_current_user),
 ):
     """Get non-secret metadata about the guest's current magic link."""
-    _get_event_owned_by(db, event_id, current_user.id)
+    _get_event_owned_by(db, event_id, current_user.id) # type: ignore
 
     guest = db.query(Guest).filter(Guest.id == guest_id, Guest.event_id == event_id).first()
     if not guest:

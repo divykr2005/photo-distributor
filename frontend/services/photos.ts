@@ -10,6 +10,12 @@ export interface PhotoFace {
   bbox_h: number;
   det_score: number;
   quality_score?: number;
+  sharpness_score?: number;
+  eye_open_score?: number;
+  smile_score?: number;
+  frontality_score?: number;
+  exposure_score?: number;
+  composite_quality?: number;
   is_matchable: boolean;
   quality_flags?: string[];
   crop_key?: string;
