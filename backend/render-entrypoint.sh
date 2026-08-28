@@ -12,4 +12,4 @@ celery -A core.celery_app.celery_app beat --loglevel=info &
 
 echo "Starting FastAPI server..."
 # PORT is provided automatically by Render, fallback to 8000 for local testing
-exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'
