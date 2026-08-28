@@ -7,9 +7,7 @@ from core.config import settings
 
 class LocalStorage(StorageBackend):
     def __init__(self, root_dir: Optional[str] = None):
-        self.root_dir = root_dir or getattr(settings, "STORAGE_ROOT", None) or os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads"
-        )
+        self.root_dir = root_dir or getattr(settings, "STORAGE_ROOT", None) or os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         os.makedirs(self.root_dir, exist_ok=True)
 
     def _get_full_path(self, key: str) -> str:

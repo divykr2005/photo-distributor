@@ -23,8 +23,16 @@ def process_guest_registration_photo(guest_id: str, photo_path: str, db: Session
 
     try:
         from services.face_engine import FaceEngine
+        from services.storage import get_storage_backend
+        
         processor = FaceEngine.get_instance()
-        embedding, quality_score = processor.process_guest_image(photo_path)
+        storage = get_storage_backend()
+        
+        actual_path = photo_path
+        if hasattr(storage, "_get_full_path"):
+            actual_path = storage._get_full_path(photo_path)
+            
+        embedding, quality_score = processor.process_guest_image(actual_path)
 
         emb_repo.create(
             guest_id=guest.id,  # type: ignore
