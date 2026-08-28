@@ -74,8 +74,8 @@ async def google_login(request: Request):
     
     redirect_uri = str(request.url_for("google_callback"))
     
-    # Fix for reverse proxy (Railway) stripping https
-    if settings.ENV == "production" and redirect_uri.startswith("http://"):
+    # Aggressive fix for reverse proxy (Railway) stripping https
+    if "up.railway.app" in redirect_uri and redirect_uri.startswith("http://"):
         redirect_uri = redirect_uri.replace("http://", "https://", 1)
         
     return await oauth.google.authorize_redirect(request, redirect_uri)
