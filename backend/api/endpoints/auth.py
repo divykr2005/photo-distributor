@@ -73,6 +73,10 @@ async def google_login(request: Request):
         raise HTTPException(status_code=500, detail="Google OAuth not configured")
     
     redirect_uri = str(request.url_for("google_callback"))
+    
+    # Fix for reverse proxy (Railway) stripping https
+    if settings.ENV == "production" and redirect_uri.startswith("http://"):
+        redirect_uri = redirect_uri.replace("http://", "https://", 1)
         
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
