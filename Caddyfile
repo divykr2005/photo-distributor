@@ -1,0 +1,3 @@
+api.snaptracer.devs.surf {
+    reverse_proxy localhost:8000
+}

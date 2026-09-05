@@ -47,7 +47,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/uploads:/app/uploads
+      - ./backend:/app
     depends_on:
       db:
         condition: service_healthy
@@ -56,7 +56,7 @@ services:
     command: >
       sh -c "cd /app &&
              alembic upgrade head &&
-             uvicorn main:app --host 0.0.0.0 --port 8000"
+             uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"
     restart: unless-stopped
 
   worker-faces:
@@ -73,7 +73,7 @@ services:
       INSIGHTFACE_MODEL: buffalo_l
       INSIGHTFACE_DET_SIZE: 640
     volumes:
-      - ./backend/uploads:/app/uploads
+      - ./backend:/app
     depends_on:
       db:
         condition: service_healthy
@@ -98,7 +98,7 @@ services:
       POSTGRES_PORT: "5432"
       REDIS_URL: redis://redis:6379/0
     volumes:
-      - ./backend/uploads:/app/uploads
+      - ./backend:/app
     depends_on:
       db:
         condition: service_healthy
@@ -123,7 +123,7 @@ services:
       POSTGRES_PORT: "5432"
       REDIS_URL: redis://redis:6379/0
     volumes:
-      - ./backend/uploads:/app/uploads
+      - ./backend:/app
     depends_on:
       db:
         condition: service_healthy

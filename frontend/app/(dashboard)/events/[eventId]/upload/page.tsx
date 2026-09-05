@@ -1,11 +1,9 @@
-"use client";
-
-import React, { use } from "react";
+import React from "react";
 import BulkUploader from "@/components/uploader/BulkUploader";
 import DriveImporter from "@/components/uploader/DriveImporter";
 
-export default function EventUploadPage({ params }: { params: Promise<{ eventId: string }> }) {
-  const { eventId } = use(params);
+export default function EventUploadPage({ params }: { params: { eventId: string } }) {
+  const { eventId } = params;
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">

@@ -49,10 +49,10 @@ class SmtpNotifier(BaseNotifier):
         extra_data: Optional[dict] = None,
     ) -> NotificationResult:
         smtp_host = getattr(settings, "SMTP_HOST", None) or os.getenv("SMTP_HOST")
-        smtp_port = int(getattr(settings, "SMTP_PORT", 587) or os.getenv("SMTP_PORT", 587))
+        smtp_port = int(getattr(settings, "SMTP_PORT", None) or os.getenv("SMTP_PORT", 587))
         smtp_user = getattr(settings, "SMTP_USER", None) or os.getenv("SMTP_USER")
         smtp_password = getattr(settings, "SMTP_PASSWORD", None) or os.getenv("SMTP_PASSWORD")
-        smtp_from = getattr(settings, "SMTP_FROM", "noreply@eventphotos.com") or os.getenv("SMTP_FROM", "noreply@eventphotos.com")
+        smtp_from = getattr(settings, "SMTP_FROM", None) or os.getenv("SMTP_FROM", "noreply@eventphotos.com")
 
         if not smtp_host:
             # Fallback to console mock behavior if SMTP not configured
@@ -72,9 +72,14 @@ class SmtpNotifier(BaseNotifier):
                 part2 = MIMEText(body_html, "html")
                 msg.attach(part2)
 
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+            if smtp_port == 465:
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
+            else:
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
                 if getattr(settings, "SMTP_TLS", True):
                     server.starttls()
+            
+            with server:
                 if smtp_user and smtp_password:
                     server.login(smtp_user, smtp_password)
                 server.sendmail(smtp_from, [recipient], msg.as_string())

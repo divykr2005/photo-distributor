@@ -73,7 +73,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
 
           try {
             if (task.type === "drive_import") {
-              const res = await api.get(`/uploads/batches/${task.id}`);
+              const res = await api.get(`/upload-batches/${task.id}`);
               const batch = res.data;
               const hasTotal = batch.total_files && batch.total_files > 0;
               const received = batch.received_files || 0;

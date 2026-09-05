@@ -34,7 +34,7 @@ export default function EventsPage() {
 
   const fetchEvents = async () => {
     try {
-      const { data } = await api.get<Event[]>("/events");
+      const { data } = await api.get<Event[]>("/events/");
       setEvents(data);
     } catch {
       setError("Failed to load events");

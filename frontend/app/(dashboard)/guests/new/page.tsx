@@ -21,7 +21,7 @@ export default function NewGuestPage() {
 
   useEffect(() => {
     api
-      .get<Event[]>("/events")
+      .get<Event[]>("/events/")
       .then(({ data }) => setEvents(data))
       .catch(() => setError("Failed to load events"))
       .finally(() => setLoading(false));

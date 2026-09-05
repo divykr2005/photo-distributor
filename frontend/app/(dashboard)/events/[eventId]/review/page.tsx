@@ -1,10 +1,10 @@
 "use client";
 
-import React, { use } from "react";
+import React from "react";
 import ReviewQueue from "@/components/face-review/ReviewQueue";
 
-export default function EventReviewPage({ params }: { params: Promise<{ eventId: string }> }) {
-  const { eventId } = use(params);
+export default function EventReviewPage({ params }: { params: { eventId: string } }) {
+  const { eventId } = params;
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">

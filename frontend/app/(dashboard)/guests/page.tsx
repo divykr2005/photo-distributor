@@ -59,7 +59,7 @@ export default function GuestsPage() {
       });
       if (search) params.set("search", search);
       if (filterEvent) params.set("event_id", filterEvent);
-      const { data } = await api.get<PaginatedGuests>(`/guests?${params}`);
+      const { data } = await api.get<PaginatedGuests>(`/guests/?${params}`);
       setGuests(data.data);
       setTotal(data.total);
     } catch {
@@ -71,7 +71,7 @@ export default function GuestsPage() {
 
   // Load events once
   useEffect(() => {
-    api.get<Event[]>("/events").then(({ data }) => setEvents(data)).catch(() => {});
+    api.get<Event[]>("/events/").then(({ data }) => setEvents(data)).catch(() => {});
   }, []);
 
   // Debounce search/filter; reset to page 1

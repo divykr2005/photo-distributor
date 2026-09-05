@@ -1,6 +1,6 @@
 "use client";
 
-import React, { use, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { getGuestPhotos, updateMatchAction, Match } from "@/services/matches";
 import { Photo } from "@/services/photos";
 import { useAuthImage } from "@/hooks/useAuthImage";
@@ -31,8 +31,8 @@ function GuestPhotoItem({ photo }: { photo: Photo }) {
   );
 }
 
-export default function GuestDetailPage({ params }: { params: Promise<{ guestId: string }> }) {
-  const { guestId } = use(params);
+export default function GuestDetailPage({ params }: { params: { guestId: string } }) {
+  const { guestId } = params;
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
 

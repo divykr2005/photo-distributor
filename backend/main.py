@@ -102,11 +102,32 @@ app.include_router(
     notifications.public_opt_out_router, prefix=f"{settings.API_V1_STR}", tags=["public_opt_out"]
 )
 
-# Serve uploaded files
 import os
-upload_dir = os.path.join(os.path.dirname(__file__), "uploads")
-os.makedirs(upload_dir, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
+from fastapi import HTTPException
+from fastapi.responses import Response, FileResponse
+from services.storage import get_storage_backend
+# Serve uploaded files via storage backend (supports Local AND R2 seamlessly)
+@app.get("/uploads/{file_path:path}")
+def serve_uploads(file_path: str):
+    storage = get_storage_backend()
+    storage_key = f"uploads/{file_path}"
+    try:
+        data = storage.get(storage_key)
+        if data:
+            # Guess mime type basic
+            media_type = "image/jpeg"
+            if file_path.lower().endswith(".png"): media_type = "image/png"
+            elif file_path.lower().endswith(".webp"): media_type = "image/webp"
+            return Response(content=data, media_type=media_type)
+    except Exception:
+        pass
+    
+    # Fallback to checking local dir just in case
+    local_path = os.path.join(os.path.dirname(__file__), "uploads", file_path)
+    if os.path.exists(local_path):
+        return FileResponse(local_path)
+        
+    raise HTTPException(status_code=404, detail="File not found")
 
 
 @app.get("/robots.txt", response_class=PlainTextResponse)

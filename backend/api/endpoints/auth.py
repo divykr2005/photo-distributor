@@ -47,6 +47,21 @@ def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+@router.post("/dev-login", response_model=Token)
+def dev_login(email: str = "test@example.com", name: str = "Test User", db: Session = Depends(get_db)):
+    """
+    MAGIC LOGIN FOR LOCAL DEVELOPMENT.
+    This skips Google OAuth and passwords entirely and generates a valid JWT.
+    Only works if ENV=development in your .env file!
+    """
+    if settings.ENV != "development":
+        raise HTTPException(status_code=403, detail="Nice try! This endpoint is only available in development mode.")
+    
+    auth_service = AuthService(db)
+    # Reusing the google login logic since it creates the user if they don't exist
+    return auth_service.login_with_google(email, name)
+
+
 # Google OAuth Setup
 from authlib.integrations.starlette_client import OAuth
 from starlette.config import Config
