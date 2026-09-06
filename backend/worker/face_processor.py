@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import cv2
 import numpy as np
 
@@ -43,7 +43,7 @@ class FaceProcessor:
         """
         from deepface import DeepFace  # lazy import so startup is fast
 
-        img = cv2.imread(image_path)
+        img = cv2.imread(image_path, cv2.IMREAD_REDUCED_COLOR_2)
         if img is None:
             raise FaceQualityError("Could not read the image file. Please re-upload.")
 

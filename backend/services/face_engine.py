@@ -45,7 +45,7 @@ class FaceEngine:
         det_size_val = int(os.getenv("INSIGHTFACE_DET_SIZE", "640"))
         
         logger.info(f"Initializing InsightFace FaceEngine with model={model_name}, det_size={det_size_val}")
-        self.app = FaceAnalysis(name=model_name, providers=['CPUExecutionProvider'])
+        self.app = FaceAnalysis(name=model_name, allowed_modules=["detection", "recognition"], providers=['CPUExecutionProvider'])
         self.app.prepare(ctx_id=0, det_size=(det_size_val, det_size_val))
         logger.info("InsightFace FaceEngine initialized successfully.")
 
@@ -234,7 +234,7 @@ class FaceEngine:
         Returns (embedding_list, quality_score).
         Raises ValueError if quality checks fail.
         """
-        img = cv2.imread(image_path)
+        img = cv2.imread(image_path, cv2.IMREAD_REDUCED_COLOR_2)
         if img is None:
             raise ValueError("Could not read the image file.")
             

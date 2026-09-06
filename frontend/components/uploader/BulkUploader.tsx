@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createUploadBatch, getUploadBatch, uploadSinglePhoto, UploadBatch } from "@/services/uploads";
 
@@ -48,6 +48,40 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
 
     return () => clearInterval(interval);
   }, [batch]);
+
+  // Web Worker for image resizing
+  const workerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    workerRef.current = new Worker(new URL('../../workers/imageResize.worker.ts', import.meta.url));
+    return () => {
+      workerRef.current?.terminate();
+    };
+  }, []);
+
+  const compressFile = useCallback((id: string, file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      if (!workerRef.current) {
+        resolve(file);
+        return;
+      }
+      
+      const handleMessage = (e: MessageEvent) => {
+        if (e.data.id === id) {
+          workerRef.current?.removeEventListener('message', handleMessage);
+          if (e.data.error) {
+            console.error("Compression error:", e.data.error);
+            resolve(file); // Fallback to original
+          } else {
+            resolve(e.data.file);
+          }
+        }
+      };
+      
+      workerRef.current.addEventListener('message', handleMessage);
+      workerRef.current.postMessage({ id, file });
+    });
+  }, []);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -99,7 +133,10 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
             curr.map((item) => (item.id === target.id ? { ...item, status: "uploading", progress: 0 } : item))
           );
 
-          const res = await uploadSinglePhoto(eventId, target.file, batch?.id, (progress) => {
+          // Compress file before upload
+          const fileToUpload = await compressFile(target.id, target.file);
+
+          const res = await uploadSinglePhoto(eventId, fileToUpload, batch?.id, (progress) => {
             setFiles((curr) => curr.map((item) => (item.id === target.id ? { ...item, progress } : item)));
           });
 

@@ -1,193 +1,132 @@
-services:
-  db:
-    image: ankane/pgvector:latest
-    container_name: photo_distr_db
-    environment:
-      POSTGRES_DB: eventphotos
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
+x-base: &base
+  image: photo-distr-backend:latest
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  env_file: .env
+  working_dir: /app
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
 
-  redis:
-    image: redis:7-alpine
-    container_name: photo_distr_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
+x-base-env: &base-env
+  PYTHONPATH: /app
+  PYTHONUNBUFFERED: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  MALLOC_ARENA_MAX: "2"
+
+services:
+  # One-shot migrations; everything else waits for a clean exit.
+  migrate:
+    <<: *base
+    container_name: photo_distr_migrate
+    restart: "no"
+    environment: *base-env
+    command: alembic upgrade head
+    mem_limit: 512m
+    memswap_limit: 512m
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    <<: *base
     container_name: photo_distr_backend
-    env_file: .env
-    environment:
-      PYTHONPATH: /app
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
-      REDIS_URL: redis://redis:6379/0
-      FRONTEND_URL: http://localhost:3000
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment: *base-env
+    ports:
+      - "127.0.0.1:8000:8000"   # Caddy is the only ingress
     command: >
-      sh -c "cd /app &&
-             alembic upgrade head &&
-             uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"
-    restart: unless-stopped
+      uvicorn main:app
+      --host 0.0.0.0 --port 8000
+      --workers 1
+      --proxy-headers --forwarded-allow-ips='*'
+      --timeout-keep-alive 65
+      --limit-concurrency 128
+      --no-access-log
+    mem_limit: 768m
+    memswap_limit: 1024m
+    cpu_shares: 1024
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
 
   worker-faces:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    <<: *base
     container_name: photo_distr_worker_faces
-    env_file: .env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     environment:
-      PYTHONPATH: /app
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
-      REDIS_URL: redis://redis:6379/0
+      <<: *base-env
       INSIGHTFACE_MODEL: buffalo_l
-      INSIGHTFACE_DET_SIZE: 640
+      INSIGHTFACE_DET_SIZE: "640"
+      INSIGHTFACE_HOME: /models
     volumes:
-      - ./backend:/app
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - insightface_models:/models
     command: >
       celery -A core.celery_app.celery_app worker
       --loglevel=info
-      --concurrency=4
+      --pool=prefork
+      --concurrency=1
+      --prefetch-multiplier=1
+      --max-tasks-per-child=100
+      --max-memory-per-child=1750000
+      --without-gossip --without-mingle --without-heartbeat
       -Q faces
-    restart: unless-stopped
+      -n faces@%h
+    mem_limit: 2500m
+    memswap_limit: 2500m
+    mem_swappiness: 0
+    cpu_shares: 256
+    oom_score_adj: 600        # host OOM killer picks this before sshd/Caddy
 
-  worker-match:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: photo_distr_worker_match
-    env_file: .env
-    environment:
-      PYTHONPATH: /app
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
-      REDIS_URL: redis://redis:6379/0
-    volumes:
-      - ./backend:/app
+  # match + zip + beat in a single interpreter, threaded (both are I/O-bound).
+  worker-io:
+    <<: *base
+    container_name: photo_distr_worker_io
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment: *base-env
+    volumes:
+      - celerybeat:/var/lib/celerybeat
+      - zip_staging:/var/tmp/zips     # disk, NOT tmpfs
     command: >
       celery -A core.celery_app.celery_app worker
       --loglevel=info
-      --concurrency=2
-      -Q match,celery
-    restart: unless-stopped
+      --pool=threads
+      --concurrency=4
+      --prefetch-multiplier=1
+      --without-gossip --without-mingle --without-heartbeat
+      -Q match,celery,maintenance
+      -n io@%h
+      --beat --schedule=/var/lib/celerybeat/schedule
+    mem_limit: 640m
+    memswap_limit: 896m
+    cpu_shares: 512
+    oom_score_adj: 300
 
-  worker-zip:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: photo_distr_worker_zip
-    env_file: .env
-    environment:
-      PYTHONPATH: /app
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
-      REDIS_URL: redis://redis:6379/0
-    volumes:
-      - ./backend:/app
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: >
-      celery -A core.celery_app.celery_app worker
-      --loglevel=info
-      --concurrency=2
-      -Q maintenance
-    restart: unless-stopped
-
-  beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: photo_distr_beat
-    env_file: .env
-    environment:
-      PYTHONPATH: /app
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
-      REDIS_URL: redis://redis:6379/0
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: >
-      celery -A core.celery_app.celery_app beat
-      --loglevel=info
-    restart: unless-stopped
-
+  # docker compose --profile debug up -d flower
   flower:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    <<: *base
     container_name: photo_distr_flower
-    env_file: .env
-    environment:
-      REDIS_URL: redis://redis:6379/0
+    profiles: ["debug"]
+    environment: *base-env
+    command: celery -A core.celery_app.celery_app flower --port=5555
     ports:
-      - "5555:5555"
-    depends_on:
-      redis:
-        condition: service_healthy
-    command: >
-      celery -A core.celery_app.celery_app flower
-      --port=5555
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: photo_distr_frontend
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    restart: unless-stopped
+      - "127.0.0.1:5555:5555"
+    mem_limit: 256m
 
 volumes:
-  pgdata:
-  redisdata:
+  insightface_models:
+  celerybeat:
+  zip_staging:
