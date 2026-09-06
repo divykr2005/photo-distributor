@@ -43,4 +43,9 @@ class FaceEmbedding(Base):
     enc_nonce = Column(LargeBinary, nullable=True)
     enc_key_id = Column(String(100), nullable=True)
 
+    if VECTOR_AVAILABLE:
+        embedding = Column(Vector(512), nullable=True)
+    else:
+        embedding = Column(Text, nullable=True)
+
     guest = relationship("Guest", backref=backref("face_embeddings", cascade="all, delete-orphan"))
