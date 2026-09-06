@@ -185,7 +185,8 @@ def cluster_duplicates_task(self, event_id_str: str) -> dict:
     from core.config import settings
     
     lock_name = f"event:{event_id_str}:dedup_lock"
-    r = redis.Redis.from_url(getattr(settings, "REDIS_URL", "redis://localhost:6379/0"))
+    from core.config import get_redis_url
+    r = redis.Redis.from_url(get_redis_url())
     
     # Try to acquire lock, non-blocking
     if not r.set(lock_name, "locked", nx=True, ex=300): # 5 min timeout

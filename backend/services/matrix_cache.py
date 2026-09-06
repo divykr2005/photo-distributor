@@ -23,7 +23,8 @@ class MatrixCache:
     def __init__(self, db: Session):
         self.db = db
         try:
-            self.redis = redis.Redis.from_url(getattr(settings, "REDIS_URL", "redis://localhost:6379/0"))
+            from core.config import get_redis_url
+            self.redis = redis.Redis.from_url(get_redis_url())
         except Exception:
             self.redis = None
 

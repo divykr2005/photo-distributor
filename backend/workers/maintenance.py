@@ -62,7 +62,10 @@ def requeue_stale_photos() -> dict:
 def check_dirty_events_task() -> dict:
     """Scans Redis every 30s for events marked dirty and triggers batched matching if lock acquired."""
     try:
-        r = redis.Redis.from_url(getattr(settings, "REDIS_URL", "redis://localhost:6379/0"))
+        url = getattr(settings, "REDIS_URL", "redis://localhost:6379/0")
+        if "ssl_cert_reqs=CERT_NONE" in url:
+            url = url.replace("ssl_cert_reqs=CERT_NONE", "ssl_cert_reqs=none")
+        r = redis.Redis.from_url(url)
         keys = r.keys("event:*:faces_dirty")
         triggered = []
 

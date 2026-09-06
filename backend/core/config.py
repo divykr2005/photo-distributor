@@ -64,3 +64,11 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def get_redis_url() -> str:
+    """Return REDIS_URL with ssl_cert_reqs normalized for redis-py compatibility."""
+    url = settings.REDIS_URL
+    if "ssl_cert_reqs=CERT_NONE" in url:
+        url = url.replace("ssl_cert_reqs=CERT_NONE", "ssl_cert_reqs=none")
+    return url

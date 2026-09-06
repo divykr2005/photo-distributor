@@ -30,7 +30,8 @@ def run_event_match(self, event_id_str: str, force: bool = False, trigger: str =
         db.close()
         # Release Redis match_lock
         try:
-            r = redis.Redis.from_url(getattr(settings, "REDIS_URL", "redis://localhost:6379/0"))
+            from core.config import get_redis_url
+            r = redis.Redis.from_url(get_redis_url())
             r.delete(f"event:{event_id_str}:match_lock")
         except Exception:
             pass

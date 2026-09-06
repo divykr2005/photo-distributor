@@ -150,7 +150,10 @@ def extract_faces(self, photo_id_str: str) -> dict:
 
         # Set Redis event faces dirty flag
         try:
-            r = redis.Redis.from_url(getattr(settings, "REDIS_URL", "redis://localhost:6379/0"))
+            url = getattr(settings, "REDIS_URL", "redis://localhost:6379/0")
+            if "ssl_cert_reqs=CERT_NONE" in url:
+                url = url.replace("ssl_cert_reqs=CERT_NONE", "ssl_cert_reqs=none")
+            r = redis.Redis.from_url(url)
             r.set(f"event:{event_id}:faces_dirty", "true")
         except Exception as e:
             logger.warning(f"Failed to set dirty flag in Redis: {e}")

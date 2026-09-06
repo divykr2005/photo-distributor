@@ -28,7 +28,8 @@ class SelfieSearchService:
     def __init__(self, db: Session):
         self.db = db
         try:
-            self.redis = redis.Redis.from_url(getattr(settings, "REDIS_URL", "redis://localhost:6379/0"))
+            from core.config import get_redis_url
+            self.redis = redis.Redis.from_url(get_redis_url())
         except Exception as e:
             logger.warning(f"Redis not available for selfie search service: {e}")
             self.redis = None
