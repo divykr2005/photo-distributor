@@ -65,6 +65,7 @@ class MatrixCache:
         load_query = text("""
             SELECT fe.id as fe_id, fe.guest_id::text as guest_id, 
                    fe.embedding_enc, fe.enc_nonce, fe.model_version,
+                   fe.embedding::text as embedding,
                    g.wrapped_dek, e.wrapped_kek
             FROM face_embeddings fe
             JOIN guests g ON fe.guest_id = g.id
@@ -102,7 +103,7 @@ class MatrixCache:
                 raw_emb_str = pt_bytes.decode('utf-8')
             else:
                 # Fallback to plaintext if not encrypted yet
-                raw_emb_str = None
+                raw_emb_str = row.embedding
 
             if not raw_emb_str:
                 continue

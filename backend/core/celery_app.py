@@ -32,6 +32,8 @@ celery_app.conf.update(
     task_soft_time_limit=600,
     visibility_timeout=600,
     task_routes={
+        "worker.tasks.process_guest_registration_photo_task": {"queue": "faces"},
+        "worker.tasks.process_event_photo_task": {"queue": "faces"},
         "workers.faces.*": {"queue": "faces"},
         "workers.matching.*": {"queue": "match"},
         "workers.maintenance.*": {"queue": "maintenance"},

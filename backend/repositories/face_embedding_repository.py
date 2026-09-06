@@ -61,6 +61,7 @@ class FaceEmbeddingRepository:
             model_version=model_version,
             embedding_dim=embedding_dim,
             quality_score=quality_score,
+            embedding=embedding,
             embedding_enc=ciphertext,
             enc_nonce=nonce,
             enc_key_id="local" if ciphertext else None,

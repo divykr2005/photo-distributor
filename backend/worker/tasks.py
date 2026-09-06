@@ -42,6 +42,13 @@ def process_guest_registration_photo(guest_id: str, photo_path: str, db: Session
         emb_repo.set_guest_embedding_status(guest, EmbeddingStatus.SUCCESS)
         logger.info(f"Embedding stored for guest {guest_id} (quality={quality_score})")
 
+        try:
+            from workers.matching import run_guest_match
+            run_guest_match.delay(str(guest.event_id), str(guest.id))
+            logger.info(f"Queued match task for new guest {guest_id}")
+        except Exception as queue_err:
+            logger.error(f"Failed to queue match task for guest {guest_id}: {queue_err}")
+
     except (FaceQualityError, ValueError) as e:
         error_msg = str(e)
         logger.warning(f"Quality gate failed for guest {guest_id}: {error_msg}")
