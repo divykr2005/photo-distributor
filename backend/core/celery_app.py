@@ -56,6 +56,16 @@ celery_app.conf.update(
             "schedule": 3600.0,
             "options": {"queue": "maintenance"},
         },
+        "monitor-queue-depth-every-1m": {
+            "task": "workers.maintenance.monitor_queue_depth",
+            "schedule": 60.0,
+            "options": {"queue": "maintenance"},
+        },
+        "sweep-expired-guests-daily": {
+            "task": "workers.maintenance.sweep_expired_guests",
+            "schedule": 86400.0,  # Every 24 hours
+            "options": {"queue": "maintenance"},
+        },
     },
 )
 

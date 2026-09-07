@@ -1,0 +1,31 @@
+phases:
+  - id: 0
+    name: "Agent scaffolding and repo hygiene"
+    status: in_progress
+  - id: 1
+    name: "Configuration contract and single source of URL truth"
+    status: pending
+  - id: 2
+    name: "Traefik, TLS, and edge hardening"
+    status: pending
+  - id: 3
+    name: "Auth persistence (revised to cookies)"
+    status: pending
+  - id: 4
+    name: "Guest CRUD without embedding loss"
+    status: pending
+  - id: 5
+    name: "Notification provider abstraction, then WhatsApp"
+    status: pending
+  - id: 6
+    name: "UI cleanup behind flags"
+    status: pending
+  - id: 7
+    name: "Consolidate the matching path"
+    status: pending
+  - id: 8
+    name: "Operability"
+    status: pending
+  - id: 9
+    name: "Biometric consent and retention"
+    status: pending

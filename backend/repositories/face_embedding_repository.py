@@ -131,3 +131,17 @@ class FaceEmbeddingRepository:
             for row in rows
         ]
 
+    def delete_by_guest(self, guest_id: UUID) -> int:
+        """Hard-delete all face_embeddings rows for the given guest.
+
+        Returns the number of rows deleted.
+        Used by the biometrics purge endpoint and the sweep_expired_guests task.
+        """
+        deleted = (
+            self.db.query(FaceEmbedding)
+            .filter(FaceEmbedding.guest_id == guest_id)
+            .delete(synchronize_session=False)
+        )
+        self.db.commit()
+        return deleted
+

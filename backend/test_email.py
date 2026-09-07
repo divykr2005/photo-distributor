@@ -11,12 +11,13 @@ from services.notifier.templates import render_email_template
 def run_test():
     notifier = SmtpNotifier()
     
+    frontend_url = str(settings.FRONTEND_URL).rstrip('/')
     subject, text_body, html_body = render_email_template(
         guest_name="Chanchala",
         event_title="Deep Obsidian AI Testing Event",
         photo_count=5,
-        magic_link="http://localhost:3000/g/test-magic-link",
-        opt_out_link="http://localhost:3000/opt-out/test",
+        magic_link=f"{frontend_url}/g/test-magic-link",
+        opt_out_link=f"{frontend_url}/opt-out/test",
     )
     
     print("Sending test email to chanchalav480@gmail.com...")

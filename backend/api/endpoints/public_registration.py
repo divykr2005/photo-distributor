@@ -46,6 +46,8 @@ async def public_guest_register(
     phone: str = Form(...),
     email: str | None = Form(None),
     gender: str | None = Form(None),
+    whatsapp_consent: bool = Form(False),
+    whatsapp_consent_text_version: str | None = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
@@ -66,15 +68,33 @@ async def public_guest_register(
     if len(contents) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image must be under 10 MB.")
 
+    # Phone normalization to E.164
+    import phonenumbers
+    try:
+        parsed_phone = phonenumbers.parse(phone, "US") # Default region US if no + provided
+        if not phonenumbers.is_valid_number(parsed_phone):
+            raise ValueError("Invalid phone number")
+        formatted_phone = phonenumbers.format_number(parsed_phone, phonenumbers.PhoneNumberFormat.E164)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid phone number format: {str(e)}")
+
     # Create the guest record
     repo = GuestRepository(db)
+    
+    from datetime import datetime, timezone
+    consent_at = datetime.now(timezone.utc) if whatsapp_consent else None
+    consent_source = "registration_form" if whatsapp_consent else None
+
     guest_in = GuestCreate(
         event_id=event_id,
         first_name=first_name,
         last_name=last_name,
-        phone=phone,
+        phone=formatted_phone,
         email=email,
         gender=gender,
+        whatsapp_consent_at=consent_at,
+        consent_source=consent_source,
+        consent_text_version=whatsapp_consent_text_version if whatsapp_consent else None,
     )
     guest = repo.create(guest_in)
 

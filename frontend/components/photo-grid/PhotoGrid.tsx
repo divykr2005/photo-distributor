@@ -162,38 +162,42 @@ export default function PhotoGrid({ eventId }: { eventId: string }) {
         </div>
 
         <div className="flex items-center gap-3 ml-auto">
-          <label className="flex items-center gap-2 text-xs text-slate-300 font-medium cursor-pointer bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 hover:bg-slate-900 transition">
-            <input 
-              type="checkbox" 
-              checked={groupDuplicates} 
-              onChange={e => setGroupDuplicates(e.target.checked)}
-              className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-600 bg-slate-900"
-            />
-            Group Duplicates
-          </label>
-          <button
-            onClick={async () => {
-              setDedupRunning(true);
-              try {
-                await runDeduplication(eventId);
-                alert("Deduplication started in background. Refresh the grid in a few seconds.");
-              } catch (e) {
-                console.error(e);
-              } finally {
-                setDedupRunning(false);
-              }
-            }}
-            disabled={dedupRunning}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-xs rounded-lg font-medium transition"
-          >
-            {dedupRunning ? "Running..." : "Run Dedup"}
-          </button>
-          <button
-            onClick={() => setReviewModalOpen(true)}
-            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg font-medium transition shadow-md shadow-indigo-500/20"
-          >
-            Review Clusters
-          </button>
+          {process.env.NEXT_PUBLIC_FEATURE_EXPERIMENTAL_AI === 'true' && (
+            <>
+              <label className="flex items-center gap-2 text-xs text-slate-300 font-medium cursor-pointer bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 hover:bg-slate-900 transition">
+                <input 
+                  type="checkbox" 
+                  checked={groupDuplicates} 
+                  onChange={e => setGroupDuplicates(e.target.checked)}
+                  className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-600 bg-slate-900"
+                />
+                Group Duplicates
+              </label>
+              <button
+                onClick={async () => {
+                  setDedupRunning(true);
+                  try {
+                    await runDeduplication(eventId);
+                    alert("Deduplication started in background. Refresh the grid in a few seconds.");
+                  } catch (e) {
+                    console.error(e);
+                  } finally {
+                    setDedupRunning(false);
+                  }
+                }}
+                disabled={dedupRunning}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-xs rounded-lg font-medium transition"
+              >
+                {dedupRunning ? "Running..." : "Run Dedup"}
+              </button>
+              <button
+                onClick={() => setReviewModalOpen(true)}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg font-medium transition shadow-md shadow-indigo-500/20"
+              >
+                Review Clusters
+              </button>
+            </>
+          )}
           <button
             onClick={() => {
               if (selectionMode) {

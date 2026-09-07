@@ -89,3 +89,66 @@ def check_dirty_events_task() -> dict:
     except Exception as e:
         logger.error(f"Error in check_dirty_events_task: {e}")
         return {"error": str(e)}
+
+@celery_app.task(name="workers.maintenance.monitor_queue_depth")
+def monitor_queue_depth() -> dict:
+    """Monitors the depth of Celery queues and logs warnings if they exceed thresholds."""
+    try:
+        url = getattr(settings, "REDIS_URL", "redis://localhost:6379/0")
+        if "ssl_cert_reqs=CERT_NONE" in url:
+            url = url.replace("ssl_cert_reqs=CERT_NONE", "ssl_cert_reqs=none")
+        r = redis.Redis.from_url(url)
+        
+        queues = ["faces", "match", "maintenance"]
+        queue_sizes = {}
+        for q in queues:
+            size = r.llen(q)
+            queue_sizes[q] = size
+            if size > 1000:
+                logger.warning(f"HIGH QUEUE DEPTH ALERT: Queue '{q}' has {size} pending tasks!")
+                
+        return queue_sizes
+    except Exception as e:
+        logger.error(f"Error in monitor_queue_depth: {e}")
+        return {"error": str(e)}
+
+@celery_app.task(name="workers.maintenance.sweep_expired_guests")
+def sweep_expired_guests() -> dict:
+    """Deletes guests (and their biometric data) whose expires_at date has passed."""
+    db = SessionLocal()
+    deleted_count = 0
+    try:
+        now = datetime.now(timezone.utc)
+        
+        # 1. Find all expired guests
+        from models.guest import Guest
+        expired_guests = db.query(Guest).filter(Guest.expires_at < now).all()
+        
+        if not expired_guests:
+            return {"deleted": 0}
+            
+        from services.storage import get_storage_backend
+        storage = get_storage_backend()
+        
+        for guest in expired_guests:
+            # 2. Delete the actual selfie image from storage
+            if guest.image_path:
+                try:
+                    storage.delete(guest.image_path)
+                except Exception as e:
+                    logger.warning(f"Could not delete image {guest.image_path} for guest {guest.id}: {e}")
+            
+            # 3. Delete the guest from the database
+            # Cascade will handle PhotoMatch and ZipArchive records
+            db.delete(guest)
+            deleted_count += 1
+            
+        db.commit()
+        logger.info(f"Biometric retention sweep complete: deleted {deleted_count} expired guests.")
+        return {"deleted": deleted_count}
+    except Exception as e:
+        logger.error(f"Error in sweep_expired_guests: {e}")
+        db.rollback()
+        return {"error": str(e)}
+    finally:
+        db.close()

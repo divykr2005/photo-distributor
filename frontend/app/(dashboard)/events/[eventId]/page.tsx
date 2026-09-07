@@ -6,9 +6,7 @@ import {
   HiOutlineCloudUpload,
   HiOutlinePhotograph,
   HiOutlineUserGroup,
-  HiOutlineSparkles,
   HiOutlineSpeakerphone,
-  HiOutlineDuplicate,
 } from "react-icons/hi";
 import api from "@/lib/api";
 import type { Event } from "@/types";
@@ -275,42 +273,7 @@ export default function EditEventPage() {
             </div>
           </Card>
 
-          <Card title="AI Tools" className="bg-zinc-900/30">
-            <div className="flex flex-col gap-3">
-              <Button
-                type="button"
-                variant="glass"
-                onClick={async () => {
-                  try {
-                    await api.post(`/events/${eventId}/clusters/run`);
-                    setSuccess("Clustering started in background");
-                  } catch {
-                    setError("Failed to start clustering");
-                  }
-                }}
-                className="w-full justify-start gap-3"
-              >
-                <HiOutlineDuplicate className="w-5 h-5 text-zinc-400" />
-                Group Duplicates
-              </Button>
-              <Button
-                type="button"
-                variant="glass"
-                onClick={async () => {
-                  try {
-                    await api.post(`/events/${eventId}/quality-runs`);
-                    setSuccess("Quality ranking started in background");
-                  } catch {
-                    setError("Failed to start quality ranking");
-                  }
-                }}
-                className="w-full justify-start gap-3"
-              >
-                <HiOutlineSparkles className="w-5 h-5 text-zinc-400" />
-                Rank Photo Quality
-              </Button>
-            </div>
-          </Card>
+
 
           <Card title="Danger Zone" className="border-red-900/30 bg-red-950/10">
             <div className="flex flex-col gap-3">

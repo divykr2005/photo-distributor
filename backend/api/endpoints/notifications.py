@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_current_user, get_db
+from core.config import settings
 from models.event import Event
 from models.guest import Guest
 from models.notification_log import NotificationLog, NotificationStatus
@@ -32,7 +33,7 @@ router = APIRouter()
 )
 def preview_notifications(
     event_id: UUID,
-    channel: str = Query("console"),
+    channel: str = Query("smtp"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -161,12 +162,13 @@ def send_test_notification(
     if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
+    frontend_url = str(settings.FRONTEND_URL).rstrip('/')
     subject, text_body, html_body = render_email_template(
         guest_name=current_user.name or "Organizer", # type: ignore
         event_title=event.title, # type: ignore
         photo_count=12,
-        magic_link="http://localhost:3000/g/test_token_preview",
-        opt_out_link="http://localhost:3000/api/v1/public/opt-out?guest_id=test",
+        magic_link=f"{frontend_url}/g/test_token_preview",
+        opt_out_link=f"{frontend_url}/api/v1/public/opt-out?guest_id=test",
     )
 
     notifier = get_notifier(payload.channel)

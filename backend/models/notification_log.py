@@ -10,11 +10,8 @@ from database.session import Base
 
 
 class NotificationChannel(str, enum.Enum):
-    CONSOLE = "console"
     SMTP = "smtp"
-    WEBHOOK = "webhook"
-    TWILIO_SMS = "twilio_sms"
-    TWILIO_WHATSAPP = "twilio_whatsapp"
+    META_WHATSAPP = "meta_whatsapp"
 
 
 class NotificationStatus(str, enum.Enum):

@@ -1,6 +1,7 @@
-
+from typing import Literal
 from urllib.parse import quote_plus
 
+from pydantic import AnyHttpUrl, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,7 +11,7 @@ class Settings(BaseSettings):
 
     # App & Env fields
     APP_NAME: str = "AI Event Photo Distribution"
-    ENV: str = "development"
+    ENVIRONMENT: Literal["dev", "staging", "prod"] = "dev"
     PORT: int = 8000
     JWT_EXPIRE_MINUTES: int = 30
     FACE_MODEL: str = "buffalo_l"
@@ -43,9 +44,25 @@ class Settings(BaseSettings):
     # Security
     JWT_SECRET: str = "replace_with_secure_secret"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
-    
+    COOKIE_DOMAIN: str | None = None
+
+    # SMTP / Email
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USER: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM: str = "noreply@eventphotos.com"
+    SMTP_TLS: bool = True
+
+    # Meta WhatsApp Business API
+    META_WHATSAPP_TOKEN: str | None = None
+    META_WHATSAPP_PHONE_ID: str | None = None
+    META_WHATSAPP_TEMPLATE_NAME: str = "event_photo_ready"
+    META_WHATSAPP_TEMPLATE_LANG: str = "en_US"
+    WHATSAPP_VERIFY_TOKEN: str = "set_a_random_secret_here"
+
     # Google OAuth & Drive
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
@@ -57,9 +74,18 @@ class Settings(BaseSettings):
     # Matching pipeline
     MATCH_CONFIDENCE_THRESHOLD: float = 0.6
 
-    # Frontend
-    FRONTEND_URL: str = "http://localhost:3000"
+    # Frontend & External Access
+    FRONTEND_URL: AnyHttpUrl
+    API_BASE_URL: AnyHttpUrl
+    MAGIC_LINK_TTL_MINUTES: int = 60
 
+    @model_validator(mode="after")
+    def no_localhost_in_prod(self):
+        if self.ENVIRONMENT == "prod":
+            for u in (self.FRONTEND_URL, self.API_BASE_URL):
+                if "localhost" in str(u) or "127.0.0.1" in str(u):
+                    raise ValueError(f"localhost URL in prod: {u}")
+        return self
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env", extra="ignore")
 
 

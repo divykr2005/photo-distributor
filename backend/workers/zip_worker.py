@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import zipfile
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
@@ -15,7 +16,7 @@ from models.selfie_search_log import SelfieSearchLog
 from models.zip_archive import ZipArchive, ZipStatus
 from services.storage import get_storage_backend
 from services.visibility import visible_photo_ids
-from sqlalchemy import text
+from sqlalchemy import text, update
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,8 @@ def generate_guest_zip(zip_archive_id: str):
     db = SessionLocal()
     temp_zip_path = None
     try:
-        archive: Any = db.query(ZipArchive).filter(ZipArchive.id == UUID(zip_archive_id)).first()
+        archive_id_uuid = UUID(zip_archive_id)
+        archive: Any = db.query(ZipArchive).filter(ZipArchive.id == archive_id_uuid).first()
         if not archive:
             logger.error(f"ZipArchive {zip_archive_id} not found")
             return
@@ -54,9 +56,18 @@ def generate_guest_zip(zip_archive_id: str):
         photo_map = {p.id: p for p in photos}
         ordered_photos = [photo_map[pid] for pid in photo_ids if pid in photo_map]
 
-        archive.photo_count = len(ordered_photos)
-        archive.processed_photos = 0
-        archive.processed_bytes = 0
+        db.execute(
+            update(ZipArchive)
+            .where(ZipArchive.id == archive_id_uuid)
+            .values(
+                photo_count=len(ordered_photos),
+                processed_photos=0,
+                processed_bytes=0,
+                updated_at=datetime.now(timezone.utc)
+            )
+        )
+        db.commit()
+        db.expunge_all()
 
         storage = get_storage_backend()
         
@@ -74,40 +85,58 @@ def generate_guest_zip(zip_archive_id: str):
 
         with zf:
             processed_bytes = 0
+            last_update_time = time.time()
             for idx, photo in enumerate(ordered_photos, start=1):
-                data = None
+                stream = None
                 for key_attr in ("storage_key", "web_key", "thumb_key"):
                     k = getattr(photo, key_attr, None)
                     if k:
-                        data = storage.get(str(k))
-                        if data:
+                        stream = storage.get_stream(str(k))
+                        if stream:
                             break
                             
-                if data:
+                if stream:
                     ext = photo.original_filename.rsplit(".", 1)[-1] if (photo.original_filename and "." in photo.original_filename) else "jpg"
                     arc_name = f"photo_{idx:04d}_{str(photo.id)[:8]}.{ext}"
                     
-                    zf.writestr(arc_name, data)
-                    fsize = len(data)
-                    processed_bytes += fsize
+                    try:
+                        with zf.open(arc_name, "w") as zf_out:
+                            shutil.copyfileobj(stream, zf_out)
+                    finally:
+                        stream.close()
+                    
+                    info = zf.getinfo(arc_name)
+                    processed_bytes += info.file_size
 
-                archive.processed_photos = idx
-                archive.processed_bytes = processed_bytes
-                archive.updated_at = datetime.now(timezone.utc)
-                db.commit()
-
-        # Update total bytes
-        archive.total_bytes = processed_bytes
-        db.commit()
+                now_ts = time.time()
+                if (now_ts - last_update_time > 5.0) or idx == len(ordered_photos):
+                    db.execute(
+                        update(ZipArchive)
+                        .where(ZipArchive.id == archive_id_uuid)
+                        .values(
+                            processed_photos=idx,
+                            processed_bytes=processed_bytes,
+                            updated_at=datetime.now(timezone.utc)
+                        )
+                    )
+                    db.commit()
+                    last_update_time = now_ts
 
         if os.path.exists(final_zip_path):
             os.remove(final_zip_path)
         os.rename(temp_zip_path, final_zip_path)
 
-        archive.status = ZipStatus.COMPLETED.value
-        archive.file_path = final_zip_path
-        archive.expires_at = datetime.now(timezone.utc) + timedelta(hours=48)
-        archive.updated_at = datetime.now(timezone.utc)
+        db.execute(
+            update(ZipArchive)
+            .where(ZipArchive.id == archive_id_uuid)
+            .values(
+                status=ZipStatus.COMPLETED.value,
+                file_path=final_zip_path,
+                total_bytes=processed_bytes,
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=48),
+                updated_at=datetime.now(timezone.utc)
+            )
+        )
         db.commit()
         logger.info(f"ZipArchive {zip_archive_id} created successfully at {final_zip_path}")
 

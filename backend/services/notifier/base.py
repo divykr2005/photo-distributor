@@ -1,6 +1,5 @@
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Protocol
 
 
 @dataclass
@@ -12,8 +11,7 @@ class NotificationResult:
     is_transient: bool = False
 
 
-class BaseNotifier(ABC):
-    @abstractmethod
+class NotificationProvider(Protocol):
     def send(
         self,
         recipient: str,
@@ -23,4 +21,4 @@ class BaseNotifier(ABC):
         extra_data: Optional[dict] = None,
     ) -> NotificationResult:
         """Send notification to recipient."""
-        pass
+        ...

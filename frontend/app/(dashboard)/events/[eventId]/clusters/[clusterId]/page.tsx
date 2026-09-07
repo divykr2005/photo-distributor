@@ -1,3 +1,4 @@
+import { API_URL } from "@/lib/config";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -44,6 +45,16 @@ export default function ClusterDetailsPage() {
       setLoading(false);
     }
   };
+
+  if (process.env.NEXT_PUBLIC_FEATURE_EXPERIMENTAL_AI !== 'true') {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <h2 className="text-xl font-semibold text-white mb-2">Experimental Feature</h2>
+        <p className="text-slate-400">This AI feature is currently disabled.</p>
+        <Button className="mt-6" onClick={() => router.push(`/events/${eventId}`)}>Back to Event</Button>
+      </div>
+    );
+  }
 
   const excludePhoto = async (photoId: string) => {
     try {
@@ -93,7 +104,7 @@ export default function ClusterDetailsPage() {
           <Card key={photo.id} className={`p-4 flex flex-col gap-3 ${photo.is_cluster_representative ? 'border-violet-500 border-2' : ''}`}>
             <div className="aspect-square relative rounded-md overflow-hidden bg-slate-800">
               <Image
-                src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/photos/${photo.id}/thumb`}
+                src={`${API_URL}/photos/${photo.id}/thumb`}
                 alt="Photo"
                 fill
                 className="object-cover"

@@ -57,7 +57,7 @@ export default function NotifyGuestsModal({
   isOpen,
   onClose,
 }: NotifyGuestsModalProps) {
-  const [channel, setChannel] = useState<string>("console");
+  const [channel, setChannel] = useState<string>("smtp");
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [statusData, setStatusData] = useState<StatusResponse | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -221,12 +221,9 @@ export default function NotifyGuestsModal({
                 <label className="block text-sm font-semibold text-slate-200 mb-2">
                   Select Notification Channel
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {[
-                    { id: "console", label: "Console Log", desc: "Dev Mode" },
                     { id: "smtp", label: "Email", desc: "SMTP Magic Link" },
-                    { id: "webhook", label: "Webhook", desc: "HTTP Event" },
-                    { id: "twilio_sms", label: "SMS", desc: "Twilio SMS" },
                     { id: "twilio_whatsapp", label: "WhatsApp", desc: "Twilio WA" },
                   ].map((ch) => (
                     <button
@@ -320,9 +317,7 @@ export default function NotifyGuestsModal({
                         placeholder={
                           channel === "smtp"
                             ? "test@example.com"
-                            : channel === "twilio_sms" || channel === "twilio_whatsapp"
-                            ? "+1234567890"
-                            : "Console / Webhook URL"
+                            : "+1234567890"
                         }
                         value={testRecipient}
                         onChange={(e) => setTestRecipient(e.target.value)}

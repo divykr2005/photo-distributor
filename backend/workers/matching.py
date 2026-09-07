@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
     retry_kwargs={"max_retries": 3},
 )
 def run_event_match(self, event_id_str: str, force: bool = False, trigger: str = "photo_ingest") -> dict:
-    """Celery task: Executes batched NumPy matching for an event."""
+    """Celery task: Executes pgvector matching for an event."""
     db = SessionLocal()
     try:
         service = MatchingService(db)

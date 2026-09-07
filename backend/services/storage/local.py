@@ -63,6 +63,15 @@ class LocalStorage(StorageBackend):
         except Exception:
             return False
 
+    def get_stream(self, key: str) -> Optional[BinaryIO]:
+        try:
+            full_path = self._get_full_path(key)
+            if not os.path.exists(full_path):
+                return None
+            return open(full_path, "rb")
+        except Exception:
+            return None
+
 
 def get_storage_backend() -> StorageBackend:
     backend = os.environ.get("STORAGE_BACKEND", "local").lower()

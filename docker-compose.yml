@@ -39,21 +39,24 @@ services:
       migrate:
         condition: service_completed_successfully
     environment: *base-env
-    ports:
-      - "127.0.0.1:8000:8000"   # Caddy is the only ingress
+    networks:
+      - default
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.snaptracer.devs.surf`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=le"
+      - "traefik.http.routers.api.middlewares=sec-headers@file,ratelimit@file,compress@file"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+      - "traefik.http.services.api.loadbalancer.healthcheck.path=/healthz"
     command: >
-      uvicorn main:app
-      --host 0.0.0.0 --port 8000
-      --workers 1
-      --proxy-headers --forwarded-allow-ips='*'
-      --timeout-keep-alive 65
-      --limit-concurrency 128
-      --no-access-log
+      uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips='*' --timeout-keep-alive 65 --limit-concurrency 128 --no-access-log
     mem_limit: 768m
     memswap_limit: 1024m
     cpu_shares: 1024
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status==200 else 1)\""]
+      test: [ "CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status==200 else 1)\"" ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -73,43 +76,26 @@ services:
     volumes:
       - insightface_models:/models
     command: >
-      celery -A core.celery_app.celery_app worker
-      --loglevel=info
-      --pool=prefork
-      --concurrency=1
-      --prefetch-multiplier=1
-      --max-tasks-per-child=100
-      --max-memory-per-child=1750000
-      --without-gossip --without-mingle --without-heartbeat
-      -Q faces
-      -n faces@%h
+      celery -A core.celery_app.celery_app worker --loglevel=info --pool=prefork --concurrency=1 --prefetch-multiplier=1 --max-tasks-per-child=100 --max-memory-per-child=1750000 --without-gossip --without-mingle --without-heartbeat -Q faces -n faces@%h
     mem_limit: 2500m
     memswap_limit: 2500m
     mem_swappiness: 0
     cpu_shares: 256
-    oom_score_adj: 600        # host OOM killer picks this before sshd/Caddy
+    oom_score_adj: 600 # host OOM killer picks this before sshd/Caddy
 
   # match + zip + beat in a single interpreter, threaded (both are I/O-bound).
-  worker-io:
+  worker-general:
     <<: *base
-    container_name: photo_distr_worker_io
+    container_name: photo_distr_worker_general
     depends_on:
       migrate:
         condition: service_completed_successfully
     environment: *base-env
     volumes:
       - celerybeat:/var/lib/celerybeat
-      - zip_staging:/var/tmp/zips     # disk, NOT tmpfs
+      - zip_staging:/var/tmp/zips # disk, NOT tmpfs
     command: >
-      celery -A core.celery_app.celery_app worker
-      --loglevel=info
-      --pool=threads
-      --concurrency=4
-      --prefetch-multiplier=1
-      --without-gossip --without-mingle --without-heartbeat
-      -Q match,celery,maintenance
-      -n io@%h
-      --beat --schedule=/var/lib/celerybeat/schedule
+      celery -A core.celery_app.celery_app worker --loglevel=info --pool=threads --concurrency=4 --prefetch-multiplier=1 --without-gossip --without-mingle --without-heartbeat -Q match,celery,maintenance -n io@%h --beat --schedule=/var/lib/celerybeat/schedule
     mem_limit: 640m
     memswap_limit: 896m
     cpu_shares: 512
@@ -119,14 +105,38 @@ services:
   flower:
     <<: *base
     container_name: photo_distr_flower
-    profiles: ["debug"]
+    profiles: [ "debug" ]
     environment: *base-env
     command: celery -A core.celery_app.celery_app flower --port=5555
     ports:
       - "127.0.0.1:5555:5555"
     mem_limit: 256m
 
+  traefik:
+    image: traefik:v2.10
+    container_name: photo_distr_traefik
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - traefik-public
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker/traefik/acme.json:/acme.json
+      - ./docker/traefik/traefik.yml:/traefik.yml:ro
+      - ./docker/traefik/dynamic.yml:/dynamic.yml:ro
+
 volumes:
   insightface_models:
   celerybeat:
   zip_staging:
+
+networks:
+  traefik-public:
+    name: traefik-public

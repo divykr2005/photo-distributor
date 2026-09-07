@@ -19,6 +19,7 @@ import Toast from "@/components/ui/Toast";
 
 import NotifyGuestsModal from "@/components/notifications/NotifyGuestsModal";
 import ShareEventModal from "@/components/events/ShareEventModal";
+import InlineGuestEdit from "@/components/guests/InlineGuestEdit";
 import { HiOutlineShare, HiOutlineSpeakerphone } from "react-icons/hi";
 
 const API_BASE =
@@ -98,6 +99,11 @@ export default function GuestsPage() {
     } finally {
       setDeleting(null);
     }
+  };
+
+  const handleGuestSaved = (updated: Guest) => {
+    setGuests((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
+    setSuccess("Guest updated");
   };
 
   return (
@@ -270,14 +276,17 @@ export default function GuestsPage() {
                         {new Date(guest.created_at).toLocaleDateString()}
                       </td>
                       <td className="py-3 px-6 text-right">
-                        <button
-                          onClick={() => handleDelete(guest.id)}
-                          disabled={deleting === guest.id}
-                          className="p-2 rounded-lg text-zinc-500 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-zinc-800 transition-all cursor-pointer disabled:opacity-50"
-                          title="Delete Guest"
-                        >
-                          <HiOutlineTrash className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <InlineGuestEdit guest={guest} onSaved={handleGuestSaved} />
+                          <button
+                            onClick={() => handleDelete(guest.id)}
+                            disabled={deleting === guest.id}
+                            className="p-2 rounded-lg text-zinc-500 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-zinc-800 transition-all cursor-pointer disabled:opacity-50"
+                            title="Delete Guest"
+                          >
+                            <HiOutlineTrash className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

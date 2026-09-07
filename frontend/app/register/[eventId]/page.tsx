@@ -1,3 +1,4 @@
+import { API_URL } from "@/lib/config";
 "use client";
 
 import { useParams } from "next/navigation";
@@ -8,7 +9,7 @@ import Input from "@/components/ui/Input";
 import Toast from "@/components/ui/Toast";
 import api from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
 
 interface EventInfo {
   id: string;
@@ -30,6 +31,7 @@ export default function MobileRegistrationPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [gender, setGender] = useState("");
+  const [whatsappConsent, setWhatsappConsent] = useState(false);
   const [selfie, setSelfie] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -79,6 +81,10 @@ export default function MobileRegistrationPage() {
     formData.append("phone", phone);
     if (email) formData.append("email", email);
     if (gender) formData.append("gender", gender);
+    if (whatsappConsent) {
+      formData.append("whatsapp_consent", "true");
+      formData.append("whatsapp_consent_text_version", "v1.0");
+    }
     formData.append("file", selfie);
 
     try {
@@ -260,6 +266,26 @@ export default function MobileRegistrationPage() {
                 <option value="other">Other</option>
                 <option value="prefer_not_to_say">Prefer not to say</option>
               </select>
+            </div>
+            
+            <div className="flex items-start gap-3 p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
+              <div className="flex items-center h-5 mt-0.5">
+                <input
+                  id="whatsappConsent"
+                  type="checkbox"
+                  checked={whatsappConsent}
+                  onChange={(e) => setWhatsappConsent(e.target.checked)}
+                  className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-zinc-900"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label htmlFor="whatsappConsent" className="text-sm font-medium text-white cursor-pointer">
+                  Send me my photos on WhatsApp
+                </label>
+                <p className="text-xs text-zinc-400 mt-1">
+                  We will send a secure link to your photos directly to your WhatsApp when they are ready. No spam.
+                </p>
+              </div>
             </div>
           </div>
 

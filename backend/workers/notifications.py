@@ -105,7 +105,7 @@ def _rotate_magic_token(db: Session, guest: Guest) -> tuple[str, str]:
 @celery_app.task(name="workers.notifications.dispatch_guest_notification")
 def dispatch_guest_notification(
     guest_id: str,
-    channel: str = "console",
+    channel: str = "smtp",
     notification_type: str = "magic_link",
     force: bool = False,
     raw_token: str | None = None,
@@ -139,6 +139,12 @@ def dispatch_guest_notification(
             db.add(log)
             db.commit()
             return {"status": NotificationStatus.SKIPPED_OPT_OUT.value}
+
+        # 1b. WhatsApp consent check
+        if channel == "meta_whatsapp" and not guest.whatsapp_consent_at:
+            logger.info(f"[NOTIFY] Guest {guest_id} missing WhatsApp consent. Falling back to email.")
+            # Fallback to email if WhatsApp not consented
+            channel = "smtp"
 
         # 2. Count visible photos
         matches = visible_matches(db, str(guest.id)).all()  # type: ignore
@@ -207,7 +213,7 @@ def dispatch_guest_notification(
             return {"status": "rescheduled_quiet_hours", "eta": next_available_utc.isoformat()}
 
         # 6. Render templates & Dispatch
-        app_url = getattr(settings, "APP_URL", "http://localhost:3000")
+        app_url = str(settings.FRONTEND_URL).rstrip("/")
         magic_link = f"{app_url}/g/{raw_token}"
         opt_out_link = f"{app_url}/api/v1/public/opt-out?guest_id={guest.id}"
         recipient = guest.email if channel == "smtp" else (guest.phone or guest.email or "console")
@@ -261,6 +267,16 @@ def dispatch_guest_notification(
             else:
                 existing_log.status = NotificationStatus.FAILED.value  # type: ignore
                 db.commit()
+
+                # Automatic email fallback for meta_whatsapp
+                if channel == "meta_whatsapp" and guest.email:
+                    logger.info(f"[NOTIFY] WhatsApp failed for {guest_id} ({res.error}). Falling back to email.")
+                    dispatch_guest_notification.apply_async(
+                        args=[guest_id, "smtp", notification_type, force, raw_token],
+                        countdown=5,
+                    )
+                    return {"status": NotificationStatus.FAILED.value, "error": res.error, "fallback": "smtp"}
+
                 return {"status": NotificationStatus.FAILED.value, "error": res.error}
 
     finally:
@@ -270,7 +286,7 @@ def dispatch_guest_notification(
 def run_event_notification_dispatch(
     db: Session,
     event_id: str,
-    channel: str = "console",
+    channel: str = "smtp",
     dry_run: bool = False,
 ) -> dict:
     """
@@ -334,14 +350,19 @@ def run_event_notification_dispatch(
         eligible_recipients += 1
 
         if not dry_run:
-            task = dispatch_guest_notification.delay(str(guest.id), channel, "magic_link", False, raw_token)
+            # Per-recipient send throttling: stagger tasks by 2 seconds to avoid rate limits
+            delay_seconds = eligible_recipients * 2
+            task = dispatch_guest_notification.apply_async(
+                args=[str(guest.id), channel, "magic_link", False, raw_token],
+                countdown=delay_seconds
+            )
             dispatched_task_ids.append(task.id)
 
     # Render sample for preview
     sample_guest = next((g for g in guests if visible_matches(db, str(g.id)).count() > 0), guests[0] if guests else None)  # type: ignore
     sample_name = sample_guest.first_name if sample_guest else "Guest"
     _, sample_token = _get_or_create_magic_token(db, sample_guest) if sample_guest else ("", "sample_token")
-    app_url = getattr(settings, "APP_URL", "http://localhost:3000")
+    app_url = str(settings.FRONTEND_URL).rstrip("/")
     sample_link = f"{app_url}/g/{sample_token}"
     sample_opt_out = f"{app_url}/api/v1/public/opt-out?guest_id={sample_guest.id if sample_guest else 'id'}"
 

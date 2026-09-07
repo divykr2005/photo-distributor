@@ -1,3 +1,4 @@
+import { API_URL } from "@/lib/config";
 "use client";
 
 import React from "react";
@@ -5,7 +6,7 @@ import React from "react";
 export default function GoogleLoginButton() {
   const handleLogin = () => {
     // Redirect to the backend OAuth route
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+    const apiUrl = API_URL;
     window.location.href = `${apiUrl}/auth/google/login`;
   };
 

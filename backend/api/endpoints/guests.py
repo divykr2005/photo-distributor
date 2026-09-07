@@ -2,7 +2,7 @@ import os
 import uuid
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_current_user, get_db
@@ -83,6 +83,7 @@ def get_guest(
 def update_guest(
     guest_id: UUID,
     guest_in: GuestUpdate,
+    if_match: str | None = Header(None, alias="If-Match"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -91,6 +92,15 @@ def update_guest(
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
     _verify_event_owner(db, guest.event_id, current_user.id)
+    
+    # Optimistic concurrency check
+    if if_match:
+        # Strip quotes if provided by client (e.g., '"2024-..."' -> '2024-...')
+        client_etag = if_match.strip('"')
+        server_etag = str(guest.updated_at.timestamp())
+        if client_etag != server_etag:
+            raise HTTPException(status_code=412, detail="Precondition Failed: Resource has been modified")
+
     guest = repo.update(guest, guest_in)
     from schemas.guest import GuestResponse
     return GuestResponse.model_validate(guest)
@@ -108,6 +118,43 @@ def delete_guest(
         raise HTTPException(status_code=404, detail="Guest not found")
     _verify_event_owner(db, guest.event_id, current_user.id)
     repo.delete(guest)
+
+
+@router.delete("/{guest_id}/biometrics", status_code=204)
+def purge_guest_biometrics(
+    guest_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Purge a guest's biometric data (face embeddings + raw selfie) while
+    retaining the guest record itself. Use for right-to-erasure requests or
+    post-event retention policy enforcement.
+    """
+    repo = GuestRepository(db)
+    guest = repo.get_by_id(guest_id)
+    if not guest:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    _verify_event_owner(db, guest.event_id, current_user.id)
+
+    # 1. Delete all face_embeddings rows for this guest
+    emb_repo = FaceEmbeddingRepository(db)
+    emb_repo.delete_by_guest(guest_id)
+
+    # 2. Delete the raw selfie from storage (best-effort)
+    if guest.image_path:
+        try:
+            from services.storage import get_storage_backend
+            storage = get_storage_backend()
+            storage.delete(guest.image_path)
+        except Exception:
+            pass  # Don't fail the request if storage delete fails
+        guest.image_path = None  # type: ignore
+
+    # 3. Reset embedding status so the guest shows as un-enrolled
+    guest.embedding_status = "pending"  # type: ignore
+    db.commit()
+
 
 
 @router.post("/{guest_id}/photo", response_model=GuestResponse)

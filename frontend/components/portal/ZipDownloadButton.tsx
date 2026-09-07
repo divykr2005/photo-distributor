@@ -1,9 +1,10 @@
+import { API_URL } from "@/lib/config";
 "use client";
 
 import { useState, useEffect, useRef } from "react";
 import { HiOutlineDownload, HiOutlineExclamation, HiOutlineCheck } from "react-icons/hi";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
 
 interface ZipJobStatusResponse {
   job_id: string;

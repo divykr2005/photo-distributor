@@ -1,22 +1,13 @@
-from services.notifier.base import BaseNotifier, NotificationResult
-from services.notifier.adapters import (
-    ConsoleNotifier,
-    SmtpNotifier,
-    WebhookNotifier,
-    TwilioSmsNotifier,
-    TwilioWhatsappNotifier,
-    get_notifier,
-)
+from services.notifier.base import NotificationProvider, NotificationResult
+from services.notifier.adapters import SmtpNotifier, get_notifier
+from services.notifier.whatsapp import MetaWhatsAppProvider
 from services.notifier.templates import render_email_template, render_text_template
 
 __all__ = [
-    "BaseNotifier",
+    "NotificationProvider",
     "NotificationResult",
-    "ConsoleNotifier",
     "SmtpNotifier",
-    "WebhookNotifier",
-    "TwilioSmsNotifier",
-    "TwilioWhatsappNotifier",
+    "MetaWhatsAppProvider",
     "get_notifier",
     "render_email_template",
     "render_text_template",

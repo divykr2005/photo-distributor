@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from api.endpoints import auth, events, dashboard, guests, event_photos, photos, uploads, matches, media, pipeline, magic_links, public, public_media, public_selfie, public_download, public_zip, notifications, clusters, public_registration
+from api.endpoints import auth, events, dashboard, guests, event_photos, photos, uploads, matches, media, pipeline, magic_links, public, public_media, public_selfie, public_download, public_zip, notifications, clusters, public_registration, webhooks
 from core.config import settings
 from middleware.rate_limit import limiter
 
@@ -13,10 +13,21 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
 
+@app.on_event("startup")
+async def log_public_urls():
+    import logging
+    logging.info(f"Resolved FRONTEND_URL: {settings.FRONTEND_URL}")
+    logging.info(f"Resolved API_BASE_URL: {settings.API_BASE_URL}")
+
+
 # CORS
+origins = [str(settings.FRONTEND_URL).rstrip("/")]
+if settings.ENVIRONMENT == "dev":
+    origins.append("http://localhost:3000")
+    
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for dev flexibility
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -101,6 +112,9 @@ app.include_router(
 app.include_router(
     notifications.public_opt_out_router, prefix=f"{settings.API_V1_STR}", tags=["public_opt_out"]
 )
+app.include_router(
+    webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks", tags=["webhooks"]
+)
 
 import os
 from fastapi import HTTPException
@@ -133,6 +147,35 @@ def serve_uploads(file_path: str):
 @app.get("/robots.txt", response_class=PlainTextResponse)
 def get_robots_txt():
     return "User-agent: *\nDisallow: /g/\nDisallow: /events/*/find\n"
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+from sqlalchemy import text
+from api.dependencies import get_db
+from fastapi import Depends
+from sqlalchemy.orm import Session
+import redis
+from core.config import get_redis_url
+
+@app.get("/readyz")
+def readyz(db: Session = Depends(get_db)):
+    try:
+        # Check DB connection
+        db.execute(text("SELECT 1"))
+        
+        # Check Redis connection
+        r = redis.Redis.from_url(get_redis_url(), socket_timeout=1.0)
+        if not r.ping():
+            raise Exception("Redis ping failed")
+            
+        return {"status": "ok", "db": "ok", "redis": "ok"}
+    except Exception as e:
+        import logging
+        logging.error(f"Readiness check failed: {e}")
+        raise HTTPException(status_code=503, detail="Service Unavailable")
 
 
 @app.get("/")

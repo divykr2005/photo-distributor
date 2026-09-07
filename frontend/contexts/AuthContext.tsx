@@ -9,8 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import api, { setTokens, clearTokens, getRefreshToken } from "@/lib/api";
-import type { User, TokenResponse, LoginFormData, RegisterFormData } from "@/types";
+import api from "@/lib/api";
+import type { User, LoginFormData, RegisterFormData } from "@/types";
 
 interface AuthContextType {
   user: User | null;
@@ -19,7 +19,6 @@ interface AuthContextType {
   login: (data: LoginFormData) => Promise<void>;
   register: (data: RegisterFormData) => Promise<void>;
   logout: () => Promise<void>;
-  handleOAuthLogin: (accessToken: string, refreshToken: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -35,29 +34,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(data);
     } catch {
       setUser(null);
-      clearTokens();
     }
   }, []);
 
-  // On mount: attempt silent refresh if we have a refresh token in memory
+  // On mount: attempt to fetch user (interceptor handles silent refresh if needed)
   useEffect(() => {
-    const tryRefresh = async () => {
-      const rt = getRefreshToken();
-      if (rt) {
-        try {
-          const { data } = await api.post<TokenResponse>("/auth/refresh", {
-            refresh_token: rt,
-          });
-          setTokens(data);
-          await fetchUser();
-        } catch {
-          clearTokens();
-          setUser(null);
-        }
-      }
+    const initAuth = async () => {
+      await fetchUser();
       setIsLoading(false);
     };
-    tryRefresh();
+    initAuth();
   }, [fetchUser]);
 
   const login = useCallback(
@@ -67,11 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       params.append("username", formData.email);
       params.append("password", formData.password);
 
-      const { data } = await api.post<TokenResponse>("/auth/login", params, {
+      await api.post("/auth/login", params, {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
 
-      setTokens(data);
       await fetchUser();
       router.push("/dashboard");
     },
@@ -80,7 +65,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(
     async (formData: RegisterFormData) => {
-      // Register the user
       await api.post("/auth/register", {
         name: formData.name,
         email: formData.email,
@@ -94,28 +78,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    const rt = getRefreshToken();
     try {
-      if (rt) {
-        await api.post("/auth/logout", { refresh_token: rt });
-      }
+      await api.post("/auth/logout");
     } catch {
-      // Ignore logout API errors — we clear tokens regardless
+      // Ignore logout API errors
     } finally {
-      clearTokens();
       setUser(null);
       router.push("/login");
     }
   }, [router]);
-
-  const handleOAuthLogin = useCallback(
-    async (accessToken: string, refreshToken: string) => {
-      setTokens({ access_token: accessToken, refresh_token: refreshToken, token_type: "bearer" });
-      await fetchUser();
-      router.push("/dashboard");
-    },
-    [fetchUser, router]
-  );
 
   return (
     <AuthContext.Provider
@@ -126,7 +97,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
-        handleOAuthLogin,
       }}
     >
       {children}

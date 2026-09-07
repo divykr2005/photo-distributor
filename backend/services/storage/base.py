@@ -27,3 +27,11 @@ class StorageBackend(ABC):
     def exists(self, key: str) -> bool:
         """Check if storage key exists."""
         pass
+
+    @abstractmethod
+    def get_stream(self, key: str) -> Optional[BinaryIO]:
+        """
+        Returns a streaming body (file-like) instead of loading the whole file
+        into memory. Must be closed by the caller.
+        """
+        pass

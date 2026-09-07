@@ -45,6 +45,10 @@ class Guest(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+    
+    whatsapp_consent_at = Column(DateTime(timezone=True), nullable=True)
+    consent_source = Column(String(50), nullable=True)
+    consent_text_version = Column(String(50), nullable=True)
 
     wrapped_dek = Column(LargeBinary, nullable=True)
     dek_key_id = Column(String(100), nullable=True)
