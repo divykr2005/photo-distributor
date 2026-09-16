@@ -294,6 +294,45 @@ def delete_photo(
             storage.delete(str(key))
 
 
+@router.delete("/events/{event_id}/photos", status_code=204)
+def delete_all_event_photos(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete every organizer photo for an event and its stored derivatives."""
+    _verify_event_owner(db, event_id, current_user.id)  # type: ignore
+
+    photo_rows = (
+        db.query(Photo.id, Photo.storage_key, Photo.web_key, Photo.thumb_key)
+        .filter(Photo.event_id == event_id)
+        .all()
+    )
+    photo_ids = [row.id for row in photo_rows]
+    keys_to_delete = [
+        str(key)
+        for row in photo_rows
+        for key in (row.storage_key, row.web_key, row.thumb_key)
+        if key
+    ]
+
+    if photo_ids:
+        crop_keys = (
+            db.query(PhotoFace.crop_key)
+            .filter(PhotoFace.photo_id.in_(photo_ids), PhotoFace.crop_key.isnot(None))
+            .all()
+        )
+        keys_to_delete.extend(str(row.crop_key) for row in crop_keys if row.crop_key)
+        db.query(Photo).filter(Photo.id.in_(photo_ids)).delete(
+            synchronize_session=False
+        )
+        db.commit()
+
+    storage = get_storage_backend()
+    for key in keys_to_delete:
+        storage.delete(key)
+
+
 from pydantic import BaseModel
 class BulkDeleteRequest(BaseModel):
     photo_ids: list[UUID]
