@@ -26,6 +26,24 @@ x-oracle-env: &oracle-env
   MALLOC_ARENA_MAX: "2"
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: "photo_distr_${DEPLOYMENT_SLOT:-next}_redis"
+    restart: unless-stopped
+    command: >
+      redis-server --appendonly yes --appendfsync everysec
+      --maxmemory 192mb --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    mem_limit: 256m
+    memswap_limit: 320m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
   migrate:
     <<: *oracle-base
     container_name: "photo_distr_${DEPLOYMENT_SLOT:-next}_migrate"
@@ -41,6 +59,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     environment: *oracle-env
     ports:
       - "127.0.0.1:${BACKEND_BIND_PORT:-8001}:8000"
@@ -64,6 +84,8 @@ services:
       migrate:
         condition: service_completed_successfully
       backend:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     environment:
       <<: *oracle-env
@@ -91,6 +113,8 @@ services:
         condition: service_completed_successfully
       backend:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment: *oracle-env
     volumes:
       - celerybeat:/var/lib/celerybeat
@@ -106,6 +130,7 @@ services:
     oom_score_adj: 300
 
 volumes:
+  redis_data:
   insightface_models:
     external: true
     name: photo-distributor_insightface_models
