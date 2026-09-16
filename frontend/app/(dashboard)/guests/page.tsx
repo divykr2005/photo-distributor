@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   HiOutlineUserGroup,
@@ -44,6 +44,7 @@ export default function GuestsPage() {
   const [search, setSearch] = useState("");
   const [filterEvent, setFilterEvent] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
+  const requestSequence = useRef(0);
 
   const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -51,6 +52,7 @@ export default function GuestsPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const fetchGuests = useCallback(async (pg: number) => {
+    const sequence = ++requestSequence.current;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -60,12 +62,14 @@ export default function GuestsPage() {
       if (search) params.set("search", search);
       if (filterEvent) params.set("event_id", filterEvent);
       const { data } = await api.get<PaginatedGuests>(`/guests/?${params}`);
+      if (sequence !== requestSequence.current) return;
       setGuests(data.data);
       setTotal(data.total);
+      setError("");
     } catch {
-      setError("Failed to load guests");
+      if (sequence === requestSequence.current) setError("Failed to load guests");
     } finally {
-      setLoading(false);
+      if (sequence === requestSequence.current) setLoading(false);
     }
   }, [search, filterEvent]);
 
@@ -75,17 +79,12 @@ export default function GuestsPage() {
       .then(({ data }) => setEvents(data.data)).catch(() => {});
   }, []);
 
-  // Debounce search/filter; reset to page 1
+  // Debounce search/filter; reset to page 1. Page changes are handled here too,
+  // avoiding the duplicate initial request caused by two overlapping effects.
   useEffect(() => {
-    setPage(1);
-    const t = setTimeout(() => fetchGuests(1), 300);
+    const t = setTimeout(() => fetchGuests(page), search ? 300 : 0);
     return () => clearTimeout(t);
-  }, [search, filterEvent]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Re-fetch on explicit page change
-  useEffect(() => {
-    fetchGuests(page);
-  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, search, filterEvent, fetchGuests]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this guest?")) return;
@@ -93,7 +92,11 @@ export default function GuestsPage() {
     try {
       await api.delete(`/guests/${id}`);
       setSuccess("Guest deleted");
-      fetchGuests(page);
+      const remaining = total - 1;
+      const lastPage = Math.max(1, Math.ceil(remaining / PAGE_SIZE));
+      setTotal(remaining);
+      if (page > lastPage) setPage(lastPage);
+      else fetchGuests(page);
     } catch {
       setError("Failed to delete guest");
     } finally {
@@ -150,14 +153,14 @@ export default function GuestsPage() {
             type="text"
             placeholder="Search by name, phone, email..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-zinc-800/80 bg-zinc-900/60 backdrop-blur-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm shadow-inner"
           />
         </div>
         <div className="relative">
           <select
             value={filterEvent}
-            onChange={(e) => setFilterEvent(e.target.value)}
+            onChange={(e) => { setFilterEvent(e.target.value); setPage(1); }}
             className="px-4 py-2.5 pr-10 rounded-xl border border-zinc-800/80 bg-zinc-900/60 backdrop-blur-sm text-white text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none min-w-[200px]"
           >
             <option value="">All Events</option>

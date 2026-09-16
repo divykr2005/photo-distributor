@@ -1,47 +1,79 @@
-#!/bin/bash
-# setup_swap.sh
-# Allocates, formats, and enables a 4GB swap file on an Ubuntu/Debian host.
+#!/usr/bin/env bash
+# Idempotently provision a persistent swap file on Ubuntu/Debian.
 
-set -e
+set -Eeuo pipefail
 
-# Require root
-if [ "$EUID" -ne 0 ]; then
-  echo "Please run as root (sudo)"
+SWAP_FILE="${SWAP_FILE:-/swapfile}"
+SWAP_SIZE_MIB="${1:-4096}"
+SWAPPINESS="${SWAPPINESS:-10}"
+SYSCTL_FILE="/etc/sysctl.d/99-photo-distr-swap.conf"
+
+if [[ ${EUID} -ne 0 ]]; then
+  echo "Run this script as root: sudo $0 [size-in-MiB]" >&2
   exit 1
 fi
 
-SWAP_FILE="/swapfile"
-SWAP_SIZE="4G"
+if ! [[ "${SWAP_SIZE_MIB}" =~ ^[0-9]+$ ]] || (( SWAP_SIZE_MIB < 512 )); then
+  echo "Swap size must be an integer of at least 512 MiB." >&2
+  exit 1
+fi
 
-echo "Checking for existing swap..."
-if swapon --show | grep -q "$SWAP_FILE"; then
-  echo "Swap file $SWAP_FILE is already enabled."
+ensure_persistence() {
+  if ! grep -Eq "^[[:space:]]*${SWAP_FILE//\//\\/}[[:space:]]+none[[:space:]]+swap[[:space:]]" /etc/fstab; then
+    printf '%s none swap sw 0 0\n' "${SWAP_FILE}" >> /etc/fstab
+  fi
+  printf 'vm.swappiness=%s\n' "${SWAPPINESS}" > "${SYSCTL_FILE}"
+  sysctl -q "vm.swappiness=${SWAPPINESS}"
+}
+
+swap_is_active() {
+  awk 'NR > 1 {print $1}' /proc/swaps | grep -Fxq "${SWAP_FILE}"
+}
+
+if swap_is_active; then
+  ensure_persistence
+  echo "${SWAP_FILE} is already active; persistence and swappiness were verified."
+  swapon --show
+  free -h
   exit 0
 fi
 
-if [ -f "$SWAP_FILE" ]; then
-  echo "Swap file $SWAP_FILE already exists but is not enabled. Enabling..."
-  swapon "$SWAP_FILE"
+required_kib=$((SWAP_SIZE_MIB * 1024 + 1024 * 1024))
+available_kib=$(df --output=avail -k "$(dirname "${SWAP_FILE}")" | tail -n 1 | tr -d ' ')
+if (( available_kib < required_kib )); then
+  echo "Insufficient disk space: ${SWAP_SIZE_MIB} MiB swap plus 1 GiB headroom is required." >&2
+  exit 1
+fi
+
+created=false
+cleanup() {
+  if [[ "${created}" == true ]] && ! swap_is_active; then
+    rm -f -- "${SWAP_FILE}"
+  fi
+}
+trap cleanup ERR
+
+if [[ -e "${SWAP_FILE}" ]]; then
+  if ! file -b "${SWAP_FILE}" | grep -qi 'swap file'; then
+    echo "Refusing to overwrite existing non-swap file: ${SWAP_FILE}" >&2
+    exit 1
+  fi
 else
-  echo "Allocating $SWAP_SIZE swap file..."
-  fallocate -l "$SWAP_SIZE" "$SWAP_FILE" || dd if=/dev/zero of="$SWAP_FILE" bs=1M count=4096
-  
-  echo "Setting correct permissions..."
-  chmod 600 "$SWAP_FILE"
-  
-  echo "Formatting swap..."
-  mkswap "$SWAP_FILE"
-  
-  echo "Enabling swap..."
-  swapon "$SWAP_FILE"
+  echo "Allocating ${SWAP_SIZE_MIB} MiB at ${SWAP_FILE}..."
+  if ! fallocate -l "${SWAP_SIZE_MIB}M" "${SWAP_FILE}"; then
+    dd if=/dev/zero of="${SWAP_FILE}" bs=1M count="${SWAP_SIZE_MIB}" status=progress
+  fi
+  created=true
+  chmod 600 "${SWAP_FILE}"
+  mkswap "${SWAP_FILE}"
 fi
 
-# Persist in fstab if not already present
-if ! grep -q "$SWAP_FILE" /etc/fstab; then
-  echo "Adding swap to /etc/fstab for persistence..."
-  echo "$SWAP_FILE none swap sw 0 0" >> /etc/fstab
-fi
+chmod 600 "${SWAP_FILE}"
+swapon "${SWAP_FILE}"
+ensure_persistence
+trap - ERR
 
-echo "Swap setup complete!"
+echo "Swap configured successfully."
 swapon --show
 free -h
+sysctl vm.swappiness

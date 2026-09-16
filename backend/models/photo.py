@@ -49,6 +49,7 @@ class Photo(Base):
         UniqueConstraint('event_id', 'content_hash', name='uq_photos_event_content_hash'),
         Index('ix_photos_event_created', event_id, created_at.desc(), id.desc()),
         Index('ix_photos_event_status_created', event_id, status, created_at.desc(), id.desc()),
+        Index('ix_photos_event_cluster_created', event_id, dup_cluster_id, created_at.desc(), id.desc()),
     )
 
     event = relationship("Event", backref=backref("photo_records", cascade="all, delete-orphan"))

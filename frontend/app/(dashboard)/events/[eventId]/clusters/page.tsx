@@ -52,7 +52,11 @@ export default function ReviewClustersPage() {
     try {
       await api.post(`/events/${eventId}/clusters/${clusterId}/break`);
       setSuccess("Cluster broken");
-      fetchClusters(page);
+      const remaining = total - 1;
+      const lastPage = Math.max(1, Math.ceil(remaining / pageSize));
+      setTotal(remaining);
+      if (page > lastPage) setPage(lastPage);
+      else fetchClusters(page);
     } catch {
       setError("Failed to break cluster");
     }

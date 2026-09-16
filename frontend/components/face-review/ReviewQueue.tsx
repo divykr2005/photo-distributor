@@ -8,6 +8,7 @@ export default function ReviewQueue({ eventId }: { eventId: string }) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
 
   const currentMatch = matches[currentIndex];
   const faceCropPath = currentMatch ? `/media/faces/${currentMatch.photo_face_id}` : null;
@@ -16,8 +17,9 @@ export default function ReviewQueue({ eventId }: { eventId: string }) {
   const fetchQueue = async () => {
     setLoading(true);
     try {
-      const data = await getEventMatches(eventId, { decision: "review", status: "active", limit: 100 });
-      setMatches(data);
+      const result = await getEventMatches(eventId, { decision: "review", status: "active", page: 1, page_size: 50 });
+      setMatches(result.data);
+      setTotal(result.total);
       setCurrentIndex(0);
     } catch (err) {
       console.error("Failed to fetch review queue", err);
@@ -51,7 +53,13 @@ export default function ReviewQueue({ eventId }: { eventId: string }) {
   };
 
   const advance = () => {
-    setMatches((prev) => prev.filter((_, idx) => idx !== currentIndex));
+    const remaining = matches.filter((_, idx) => idx !== currentIndex);
+    setMatches(remaining);
+    setTotal((value) => Math.max(0, value - 1));
+    setCurrentIndex((index) => Math.max(0, Math.min(index, remaining.length - 1)));
+    if (remaining.length === 0) {
+      void fetchQueue();
+    }
   };
 
   // Keyboard navigation shortcuts (ArrowLeft, ArrowRight, Enter, R)
@@ -96,7 +104,7 @@ export default function ReviewQueue({ eventId }: { eventId: string }) {
       <div className="flex justify-between items-center border-b border-slate-800 pb-4">
         <div>
           <h2 className="text-xl font-bold text-white">Uncertain Match Review Queue</h2>
-          <p className="text-xs text-slate-400">Item {currentIndex + 1} of {matches.length} pending review</p>
+          <p className="text-xs text-slate-400">Item {currentIndex + 1} of {total} pending review</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
           <span className="px-2 py-1 bg-slate-800 rounded">← Prev</span>

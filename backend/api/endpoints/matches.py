@@ -12,7 +12,7 @@ from models.match import Match
 from models.photo_face import PhotoFace
 from models.photo import Photo
 from models.guest import Guest
-from schemas.match import MatchResponse, MatchActionRequest, ManualMatchRequest
+from schemas.match import MatchResponse, MatchListResponse, MatchActionRequest, ManualMatchRequest
 from schemas.photo import PhotoResponse
 
 router = APIRouter()
@@ -29,14 +29,14 @@ def _verify_event_owner(db: Session, event_id: Any, user_id: Any) -> Event:
     return event
 
 
-@router.get("/events/{event_id}/matches", response_model=List[MatchResponse])
+@router.get("/events/{event_id}/matches", response_model=MatchListResponse)
 def list_event_matches(
     event_id: UUID,
     decision: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     guest_id: Optional[UUID] = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=500),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -51,8 +51,14 @@ def list_event_matches(
     if guest_id:
         query = query.filter(Match.guest_id == guest_id)
 
-    query = query.order_by(Match.similarity.desc())
-    return query.offset(skip).limit(limit).all()
+    total = query.count()
+    matches = (
+        query.order_by(Match.similarity.desc(), Match.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return MatchListResponse(data=matches, total=total, page=page, page_size=page_size)
 
 
 @router.patch("/matches/{match_id}", response_model=MatchResponse)

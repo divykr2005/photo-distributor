@@ -26,11 +26,18 @@ export interface Match {
   matched_at: string;
 }
 
+export interface PaginatedMatches {
+  data: Match[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export async function getEventMatches(
   eventId: string,
-  params?: { decision?: string; status?: string; guest_id?: string; skip?: number; limit?: number }
-): Promise<Match[]> {
-  const { data } = await api.get<Match[]>(`/events/${eventId}/matches`, { params });
+  params?: { decision?: string; status?: string; guest_id?: string; page?: number; page_size?: number }
+): Promise<PaginatedMatches> {
+  const { data } = await api.get<PaginatedMatches>(`/events/${eventId}/matches`, { params });
   return data;
 }
 

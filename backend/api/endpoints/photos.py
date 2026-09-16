@@ -7,7 +7,7 @@ from uuid import UUID
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import exc
 
 from api.dependencies import get_current_user, get_db
@@ -243,10 +243,10 @@ def list_event_photos(
                 (Photo.created_at < cursor_dt) |
                 ((Photo.created_at == cursor_dt) & (Photo.id < cursor_id))
             )
-        except Exception:
-            pass
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid pagination cursor")
 
-    query = query.order_by(Photo.created_at.desc(), Photo.id.desc())
+    query = query.options(selectinload(Photo.faces)).order_by(Photo.created_at.desc(), Photo.id.desc())
     items = query.limit(limit + 1).all()
 
     has_more = len(items) > limit

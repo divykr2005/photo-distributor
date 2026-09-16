@@ -36,6 +36,13 @@ class MatchResponse(BaseModel):
         from_attributes = True
 
 
+class MatchListResponse(BaseModel):
+    data: List[MatchResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 class MatchActionRequest(BaseModel):
     action: str  # confirm, reject
 
