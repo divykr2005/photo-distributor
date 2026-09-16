@@ -44,7 +44,14 @@ app.add_middleware(
 )
 
 from starlette.middleware.sessions import SessionMiddleware
-app.add_middleware(SessionMiddleware, secret_key=settings.JWT_SECRET or "random_secret")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.JWT_SECRET or "random_secret",
+    session_cookie="oauth_session",
+    same_site="none" if settings.ENVIRONMENT != "dev" else "lax",
+    https_only=settings.ENVIRONMENT != "dev",
+    max_age=600,
+)
 
 from fastapi.responses import PlainTextResponse
 from middleware.rate_limit import limiter, custom_rate_limit_exceeded_handler

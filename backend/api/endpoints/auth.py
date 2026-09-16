@@ -155,7 +155,9 @@ async def google_login(request: Request):
     if "up.railway.app" in redirect_uri and redirect_uri.startswith("http://"):
         redirect_uri = redirect_uri.replace("http://", "https://", 1)
         
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+    response = await oauth.google.authorize_redirect(request, redirect_uri)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @router.get("/google/callback")
@@ -178,7 +180,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         auth_service = AuthService(db)
         token_pair = auth_service.login_with_google(email, name)
         
-        frontend_url = settings.FRONTEND_URL
+        frontend_url = str(settings.FRONTEND_URL).rstrip("/")
         redirect_url = f"{frontend_url}/dashboard"
         
         response = RedirectResponse(url=redirect_url)
@@ -188,4 +190,6 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f"Google OAuth error: {e}")
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/login?error=oauth_failed")
+        request.session.clear()
+        frontend_url = str(settings.FRONTEND_URL).rstrip("/")
+        return RedirectResponse(url=f"{frontend_url}/login?error=oauth_failed")
