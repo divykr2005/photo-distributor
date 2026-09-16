@@ -11,11 +11,11 @@ import {
   HiOutlineChevronRight,
 } from "react-icons/hi";
 import api from "@/lib/api";
-import type { Guest, Event, PaginatedGuests } from "@/types";
+import type { Guest, Event, PaginatedEvents, PaginatedGuests } from "@/types";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import Spinner from "@/components/ui/Spinner";
 import Toast from "@/components/ui/Toast";
+import { TableSkeleton } from "@/components/ui/Skeleton";
 
 import NotifyGuestsModal from "@/components/notifications/NotifyGuestsModal";
 import ShareEventModal from "@/components/events/ShareEventModal";
@@ -71,7 +71,8 @@ export default function GuestsPage() {
 
   // Load events once
   useEffect(() => {
-    api.get<Event[]>("/events/").then(({ data }) => setEvents(data)).catch(() => {});
+    api.get<PaginatedEvents>("/events/", { params: { page: 1, page_size: 100 } })
+      .then(({ data }) => setEvents(data.data)).catch(() => {});
   }, []);
 
   // Debounce search/filter; reset to page 1
@@ -174,9 +175,7 @@ export default function GuestsPage() {
 
       {/* Guest list */}
       {loading && guests.length === 0 ? (
-        <div className="flex justify-center py-20">
-          <Spinner />
-        </div>
+        <TableSkeleton rows={8} />
       ) : guests.length === 0 ? (
         <Card gradient>
           <div className="text-center py-16">

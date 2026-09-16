@@ -97,6 +97,7 @@ export default function SelfieSearchPage() {
       const res = await fetch(`${API_URL}/public/events/${eventId}/search-selfie`, {
         method: "POST",
         body: formData,
+        signal: AbortSignal.timeout(120_000),
       });
 
       if (res.status === 422) {
@@ -127,8 +128,12 @@ export default function SelfieSearchPage() {
 
       const data: SelfieSearchResponse = await res.json();
       setSearchResult(data);
-    } catch {
-      setSearchError("Network error. Please check your connection and try again.");
+    } catch (error) {
+      setSearchError(
+        error instanceof DOMException && error.name === "TimeoutError"
+          ? "The selfie search timed out. Please try again."
+          : "Network error. Please check your connection and try again."
+      );
     } finally {
       setSearching(false);
     }

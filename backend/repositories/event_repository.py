@@ -44,6 +44,23 @@ class EventRepository:
             .all()
         )
 
+    def get_page(
+        self,
+        user_id: UUID,
+        *,
+        skip: int = 0,
+        limit: int = 20,
+    ) -> tuple[list[Event], int]:
+        query = self.db.query(Event).filter(Event.created_by == user_id)
+        total = query.count()
+        events = (
+            query.order_by(Event.date.desc(), Event.id.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return events, total
+
     def update(self, event: Event, event_in: EventUpdate) -> Event:
         update_data = event_in.model_dump(exclude_unset=True)
         for field, value in update_data.items():

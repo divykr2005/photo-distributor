@@ -3,7 +3,7 @@ import logging
 from typing import Any, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_db
@@ -33,6 +33,7 @@ def _get_public_event(db: Session, event_id: UUID) -> Event:
 @router.get("/events/{event_id}/info", response_model=PublicEventInfo)
 def get_public_event_info(
     event_id: UUID,
+    response: Response,
     db: Session = Depends(get_db),
 ):
     """
@@ -40,6 +41,7 @@ def get_public_event_info(
     Returns 404 if event is disabled or not found.
     """
     event = _get_public_event(db, event_id)
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     return PublicEventInfo(
         id=UUID(str(event.id)),
         title=str(event.title),

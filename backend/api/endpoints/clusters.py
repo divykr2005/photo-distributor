@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Any
 from uuid import UUID
@@ -48,13 +48,25 @@ def run_deduplication(
 @router.get("/{event_id}/clusters")
 def get_clusters(
     event_id: UUID,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(24, ge=1, le=200),
+    min_size: int = Query(2, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Any:
     _owned_event(db, event_id, current_user.id)  # type: ignore[arg-type]
-    clusters = db.query(PhotoCluster).filter(PhotoCluster.event_id == event_id).all()
-    # Eager load representative photo isn't configured in ORM yet so we just return IDs
-    return clusters
+    query = db.query(PhotoCluster).filter(
+        PhotoCluster.event_id == event_id,
+        PhotoCluster.size >= min_size,
+    )
+    total = query.count()
+    clusters = (
+        query.order_by(PhotoCluster.created_at.desc(), PhotoCluster.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return {"data": clusters, "total": total, "page": page, "page_size": page_size}
 
 @router.get("/{event_id}/clusters/{cluster_id}")
 def get_cluster_details(

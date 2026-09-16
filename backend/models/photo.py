@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, UniqueConstraint, BigInteger, Boolean, Enum
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, UniqueConstraint, BigInteger, Boolean, Enum, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
 
@@ -47,6 +47,8 @@ class Photo(Base):
 
     __table_args__ = (
         UniqueConstraint('event_id', 'content_hash', name='uq_photos_event_content_hash'),
+        Index('ix_photos_event_created', event_id, created_at.desc(), id.desc()),
+        Index('ix_photos_event_status_created', event_id, status, created_at.desc(), id.desc()),
     )
 
     event = relationship("Event", backref=backref("photo_records", cascade="all, delete-orphan"))

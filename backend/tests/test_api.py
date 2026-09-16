@@ -45,10 +45,24 @@ def test_events_crud(client: TestClient):
     }, headers=headers)
     assert ev_resp.status_code == 201
     event_id = ev_resp.json()["id"]
+
+    second_resp = client.post("/api/v1/events/", json={
+        "title": "Later Event",
+        "date": "2026-11-01T10:00:00Z"
+    }, headers=headers)
+    assert second_resp.status_code == 201
     
-    # List Events
-    list_resp = client.get("/api/v1/events/", headers=headers)
-    assert len(list_resp.json()) == 1
+    # List Events with stable bounded pagination
+    list_resp = client.get("/api/v1/events/?page=1&page_size=1", headers=headers)
+    assert list_resp.status_code == 200
+    assert list_resp.json()["total"] == 2
+    assert len(list_resp.json()["data"]) == 1
+    assert list_resp.json()["page"] == 1
+    assert list_resp.json()["data"][0]["title"] == "Later Event"
+
+    second_page = client.get("/api/v1/events/?page=2&page_size=1", headers=headers)
+    assert second_page.status_code == 200
+    assert second_page.json()["data"][0]["title"] == "My Event"
     
     # Edit Event
     edit_resp = client.put(f"/api/v1/events/{event_id}", json={

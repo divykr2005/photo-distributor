@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "eventphotos"
 
     DATABASE_URL: str | None = None
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_TIMEOUT_SECONDS: int = 10
+    DB_POOL_RECYCLE_SECONDS: int = 1800
+    DB_CONNECT_TIMEOUT_SECONDS: int = 10
+    DB_STATEMENT_TIMEOUT_MS: int = 30000
 
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:

@@ -46,6 +46,7 @@ export async function uploadSinglePhoto(
       `/events/${eventId}/photos`,
       formData,
       {
+        timeout: 120_000,
         headers: {
           'X-CSRF-Token': csrfToken,
         },

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from core.security import create_access_token
 from models.event import Event
+from models.photo_cluster import PhotoCluster
 from models.user import User
 
 
@@ -36,3 +37,28 @@ def test_cluster_list_hides_another_organizers_event(client: TestClient, db_sess
     headers = _authenticate(client, attacker)
     response = client.get(f"/api/v1/events/{event.id}/clusters", headers=headers)
     assert response.status_code == 404
+
+
+def test_cluster_list_is_paginated(client: TestClient, db_session):
+    owner = _user(db_session, "page-owner")
+    event = Event(title="Paged Event", date=datetime.now(timezone.utc), created_by=owner.id)
+    db_session.add(event)
+    db_session.flush()
+    db_session.add_all([
+        PhotoCluster(event_id=event.id, membership_hash=f"hash-{index}", size=2)
+        for index in range(3)
+    ])
+    db_session.commit()
+
+    headers = _authenticate(client, owner)
+    response = client.get(
+        f"/api/v1/events/{event.id}/clusters?page=2&page_size=1",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 3
+    assert payload["page"] == 2
+    assert payload["page_size"] == 1
+    assert len(payload["data"]) == 1

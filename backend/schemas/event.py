@@ -55,3 +55,10 @@ class EventResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EventListResponse(BaseModel):
+    data: list[EventResponse]
+    total: int
+    page: int
+    page_size: int

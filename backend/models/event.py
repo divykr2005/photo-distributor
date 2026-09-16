@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, String, Text, LargeBinary
+from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Index, String, Text, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
 
@@ -78,5 +78,9 @@ class Event(Base):
     # COPPA (US) / UK-GDPR / GDPR Art.8 all require special handling for under-16s.
     # Default False means extraction is blocked until explicitly confirmed.
     min_age_confirmed = Column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        Index("ix_events_owner_date", created_by, date.desc(), id.desc()),
+    )
 
     creator = relationship("User", backref=backref("events", cascade="all, delete-orphan"))

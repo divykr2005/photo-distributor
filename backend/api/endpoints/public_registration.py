@@ -3,7 +3,7 @@ import uuid
 from typing import cast, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 from pydantic import EmailStr
 
@@ -26,6 +26,7 @@ UPLOAD_DIR = os.path.join(
 @router.get("/events/{event_id}")
 def get_public_event_details(
     event_id: UUID,
+    response: Response,
     db: Session = Depends(get_db),
 ):
     """
@@ -34,6 +35,8 @@ def get_public_event_details(
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
         
     return {
         "id": str(event.id),

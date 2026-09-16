@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import type { Event } from "@/types";
+import type { Event, PaginatedEvents } from "@/types";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -21,8 +21,8 @@ export default function NewGuestPage() {
 
   useEffect(() => {
     api
-      .get<Event[]>("/events/")
-      .then(({ data }) => setEvents(data))
+      .get<PaginatedEvents>("/events/", { params: { page: 1, page_size: 100 } })
+      .then(({ data }) => setEvents(data.data))
       .catch(() => setError("Failed to load events"))
       .finally(() => setLoading(false));
   }, []);
@@ -70,6 +70,7 @@ export default function NewGuestPage() {
         const photoForm = new FormData();
         photoForm.append("file", photoFile);
         await api.post(`/guests/${guest.id}/photo`, photoForm, {
+          timeout: 120_000,
           headers: { "Content-Type": "multipart/form-data" },
         });
       }

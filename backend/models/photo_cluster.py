@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, JSON, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, JSON, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -30,6 +30,13 @@ class PhotoCluster(Base):
 
     __table_args__ = (
         UniqueConstraint('event_id', 'membership_hash', name='uq_photoclusters_event_membership'),
+        Index(
+            'ix_photo_clusters_active_event_created',
+            event_id,
+            created_at.desc(),
+            id.desc(),
+            postgresql_where=(size >= 2),
+        ),
     )
 
     event = relationship("Event")

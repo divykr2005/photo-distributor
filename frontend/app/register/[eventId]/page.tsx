@@ -141,6 +141,7 @@ export default function MobileRegistrationPage() {
           "Authorization": `Bearer ${firebaseToken}`
         },
         body: formData,
+        signal: AbortSignal.timeout(120_000),
       });
 
       if (!res.ok) {
@@ -150,7 +151,7 @@ export default function MobileRegistrationPage() {
 
       setSuccess(true);
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.");
+      setError(err?.name === "TimeoutError" ? "Registration timed out. Please try again." : err.message || "An unexpected error occurred.");
     } finally {
       setSubmitting(false);
     }

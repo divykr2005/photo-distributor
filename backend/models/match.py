@@ -48,6 +48,8 @@ class Match(Base):
     __table_args__ = (
         UniqueConstraint('photo_face_id', name='uq_matches_photo_face_id'),
         Index('ix_matches_gallery', guest_id, status, cluster_rank, similarity.desc()),
+        Index('ix_matches_event_review_page', event_id, decision, status, similarity.desc(), id),
+        Index('ix_matches_guest_visible', guest_id, status, similarity.desc(), photo_id),
     )
 
     event = relationship("Event", backref=backref("match_records", cascade="all, delete-orphan"))

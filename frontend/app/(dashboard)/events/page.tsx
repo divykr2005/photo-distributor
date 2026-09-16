@@ -12,11 +12,11 @@ import {
   HiOutlineChartBar,
 } from "react-icons/hi";
 import api from "@/lib/api";
-import type { Event } from "@/types";
+import type { Event, PaginatedEvents } from "@/types";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import Spinner from "@/components/ui/Spinner";
 import Toast from "@/components/ui/Toast";
+import { CardGridSkeleton } from "@/components/ui/Skeleton";
 
 const statusColors: Record<string, string> = {
   draft: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
@@ -31,11 +31,19 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 12;
 
-  const fetchEvents = async () => {
+  const fetchEvents = async (requestedPage = page) => {
+    setLoading(true);
     try {
-      const { data } = await api.get<Event[]>("/events/");
-      setEvents(data);
+      const { data } = await api.get<PaginatedEvents>("/events/", {
+        params: { page: requestedPage, page_size: pageSize },
+      });
+      setEvents(data.data);
+      setTotal(data.total);
+      setError("");
     } catch {
       setError("Failed to load events");
     } finally {
@@ -44,15 +52,19 @@ export default function EventsPage() {
   };
 
   useEffect(() => {
-    fetchEvents();
-  }, []);
+    fetchEvents(page);
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this event? This cannot be undone.")) return;
     setDeleting(id);
     try {
       await api.delete(`/events/${id}`);
-      setEvents((prev) => prev.filter((e) => e.id !== id));
+      const remaining = total - 1;
+      const lastPage = Math.max(1, Math.ceil(remaining / pageSize));
+      setTotal(remaining);
+      if (page > lastPage) setPage(lastPage);
+      else fetchEvents(page);
     } catch {
       setError("Failed to delete event");
     } finally {
@@ -61,11 +73,7 @@ export default function EventsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <Spinner />
-      </div>
-    );
+    return <CardGridSkeleton items={6} />;
   }
 
   return (
@@ -114,6 +122,7 @@ export default function EventsPage() {
           </div>
         </Card>
       ) : (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {events.map((event) => (
             <Card
@@ -211,6 +220,23 @@ export default function EventsPage() {
             </Card>
           ))}
         </div>
+        {total > pageSize && (
+          <div className="mt-8 flex items-center justify-between text-sm text-zinc-400">
+            <span>
+              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
+            </span>
+            <div className="flex items-center gap-3">
+              <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+                Previous
+              </Button>
+              <span>Page {page} of {Math.ceil(total / pageSize)}</span>
+              <Button variant="secondary" size="sm" disabled={page * pageSize >= total} onClick={() => setPage((p) => p + 1)}>
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
+        </>
       )}
     </div>
   );

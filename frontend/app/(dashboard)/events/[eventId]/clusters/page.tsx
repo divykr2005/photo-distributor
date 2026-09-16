@@ -5,9 +5,10 @@ import { useRouter, useParams } from "next/navigation";
 import api from "@/lib/api";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import Spinner from "@/components/ui/Spinner";
 import Toast from "@/components/ui/Toast";
 import Image from "next/image";
+import { getClustersPage } from "@/services/clusters";
+import { CardGridSkeleton } from "@/components/ui/Skeleton";
 
 interface PhotoCluster {
   id: string;
@@ -25,15 +26,21 @@ export default function ReviewClustersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 24;
 
   useEffect(() => {
-    fetchClusters();
-  }, [eventId]);
+    fetchClusters(page);
+  }, [eventId, page]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchClusters = async () => {
+  const fetchClusters = async (requestedPage = page) => {
+    setLoading(true);
     try {
-      const { data } = await api.get<PhotoCluster[]>(`/events/${eventId}/clusters`);
-      setClusters(data.filter(c => c.size > 1));
+      const data = await getClustersPage(eventId, requestedPage, pageSize);
+      setClusters(data.data);
+      setTotal(data.total);
+      setError("");
     } catch {
       setError("Failed to load clusters");
     } finally {
@@ -45,18 +52,14 @@ export default function ReviewClustersPage() {
     try {
       await api.post(`/events/${eventId}/clusters/${clusterId}/break`);
       setSuccess("Cluster broken");
-      fetchClusters();
+      fetchClusters(page);
     } catch {
       setError("Failed to break cluster");
     }
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <Spinner />
-      </div>
-    );
+    return <CardGridSkeleton items={6} />;
   }
 
   return (
@@ -77,7 +80,7 @@ export default function ReviewClustersPage() {
       {clusters.length === 0 ? (
         <Card className="p-8 text-center">
           <p className="text-slate-400">No duplicate clusters found.</p>
-          <Button className="mt-4" onClick={fetchClusters}>Refresh</Button>
+          <Button className="mt-4" onClick={() => fetchClusters(page)}>Refresh</Button>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -120,6 +123,17 @@ export default function ReviewClustersPage() {
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {total > pageSize && (
+        <div className="flex items-center justify-between text-sm text-slate-400">
+          <span>Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}</span>
+          <div className="flex items-center gap-3">
+            <Button variant="secondary" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+            <span>Page {page} of {Math.ceil(total / pageSize)}</span>
+            <Button variant="secondary" disabled={page * pageSize >= total} onClick={() => setPage((p) => p + 1)}>Next</Button>
+          </div>
         </div>
       )}
     </div>

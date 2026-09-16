@@ -6,7 +6,7 @@ export interface PhotoCluster {
   event_id: string;
   membership_hash: string;
   size: number;
-  representative_photo_id?: string;
+  representative_photo_id: string | null;
   mean_quality?: number;
   time_span_s?: number;
   params?: any;
@@ -17,14 +17,38 @@ export interface ClusterDetailResponse {
   photos: Photo[];
 }
 
+export interface PaginatedClusters {
+  data: PhotoCluster[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export async function runDeduplication(eventId: string): Promise<{ status: string; task_id?: string }> {
   const { data } = await api.post(`/events/${eventId}/clusters/run`);
   return data;
 }
 
-export async function getClusters(eventId: string): Promise<PhotoCluster[]> {
-  const { data } = await api.get<PhotoCluster[]>(`/events/${eventId}/clusters`);
+export async function getClustersPage(
+  eventId: string,
+  page = 1,
+  pageSize = 24,
+): Promise<PaginatedClusters> {
+  const { data } = await api.get<PaginatedClusters>(`/events/${eventId}/clusters`, {
+    params: { page, page_size: pageSize, min_size: 2 },
+  });
   return data;
+}
+
+export async function getClusters(eventId: string): Promise<PhotoCluster[]> {
+  const first = await getClustersPage(eventId, 1, 200);
+  const clusters = [...first.data];
+  const pages = Math.ceil(first.total / first.page_size);
+  for (let page = 2; page <= pages; page += 1) {
+    const next = await getClustersPage(eventId, page, first.page_size);
+    clusters.push(...next.data);
+  }
+  return clusters;
 }
 
 export async function getClusterDetails(eventId: string, clusterId: string): Promise<ClusterDetailResponse> {

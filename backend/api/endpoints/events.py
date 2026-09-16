@@ -1,13 +1,13 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import cast
 
 from api.dependencies import get_current_user, get_db
 from models.user import User
 from repositories.event_repository import EventRepository
-from schemas.event import EventCreate, EventResponse, EventUpdate
+from schemas.event import EventCreate, EventListResponse, EventResponse, EventUpdate
 
 router = APIRouter()
 
@@ -22,13 +22,20 @@ def create_event(
     return repo.create(event_in, cast(UUID, current_user.id))
 
 
-@router.get("/", response_model=list[EventResponse])
+@router.get("/", response_model=EventListResponse)
 def list_events(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     repo = EventRepository(db)
-    return repo.get_all(cast(UUID, current_user.id))
+    events, total = repo.get_page(
+        cast(UUID, current_user.id),
+        skip=(page - 1) * page_size,
+        limit=page_size,
+    )
+    return EventListResponse(data=events, total=total, page=page, page_size=page_size)
 
 
 @router.get("/{event_id}", response_model=EventResponse)

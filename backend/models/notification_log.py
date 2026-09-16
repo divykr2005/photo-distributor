@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
 
@@ -61,6 +61,11 @@ class NotificationLog(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        Index("ix_notification_logs_event_created", event_id, created_at.desc(), id.desc()),
+        Index("ix_notification_logs_dedupe", guest_id, channel, dedupe_key, status),
     )
 
     guest = relationship("Guest", backref=backref("notification_logs", cascade="all, delete-orphan"))

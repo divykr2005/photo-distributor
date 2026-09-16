@@ -43,6 +43,13 @@ export interface EventFormData {
   min_age_confirmed?: boolean;
 }
 
+export interface PaginatedEvents {
+  data: Event[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 // ── Dashboard ──
 
 export interface DashboardStats {

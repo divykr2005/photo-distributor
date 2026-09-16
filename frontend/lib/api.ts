@@ -7,6 +7,7 @@ const api = axios.create({
   baseURL: API_URL,
   headers: { "Content-Type": "application/json" },
   withCredentials: true, // Send cookies with every request
+  timeout: 20_000,
 });
 
 // Helper to get cookie by name
@@ -52,6 +53,9 @@ api.interceptors.response.use(
   },
   async (error: any) => {
     const originalRequest = error.config as any;
+    if (error.code === "ECONNABORTED") {
+      error.userMessage = "The server took too long to respond. Please try again.";
+    }
     console.log("api.ts: Intercepted error for", originalRequest?.url, error.response?.status);
 
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry &&
