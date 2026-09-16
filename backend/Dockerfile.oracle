@@ -1,0 +1,15 @@
+ARG BASE_IMAGE=photo-distr-backend:stable-34a51ef
+FROM ${BASE_IMAGE}
+
+WORKDIR /app
+
+# Reuse the proven native/runtime layer and bundled InsightFace model from the
+# preserved production image, while updating Python dependencies and app code.
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+RUN chmod +x render-entrypoint.sh
+
+EXPOSE 8000
+CMD ["./render-entrypoint.sh"]

@@ -2,7 +2,9 @@ x-oracle-base: &oracle-base
   image: "photo-distr-backend:${IMAGE_TAG:-current}"
   build:
     context: ./backend
-    dockerfile: Dockerfile
+    dockerfile: Dockerfile.oracle
+    args:
+      BASE_IMAGE: "photo-distr-backend:stable-34a51ef"
   env_file:
     - .env
     - /etc/photo-distributor/runtime.env
