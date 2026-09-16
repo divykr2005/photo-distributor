@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
 import Spinner from "@/components/ui/Spinner";
+import { navigateWithinOrigin } from "@/lib/navigation";
 
 export default function DashboardLayout({
   children,
@@ -13,13 +13,11 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
-
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.replace("/login");
+      navigateWithinOrigin("/login", true);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading]);
 
   if (isLoading) {
     return (

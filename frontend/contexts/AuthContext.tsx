@@ -8,8 +8,8 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
 import api from "@/lib/api";
+import { navigateWithinOrigin } from "@/lib/navigation";
 import type { User, LoginFormData, RegisterFormData } from "@/types";
 
 interface AuthContextType {
@@ -26,8 +26,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
-
   const fetchUser = useCallback(async () => {
     try {
       const { data } = await api.get<User>("/auth/me");
@@ -81,9 +79,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       await fetchUser();
-      router.push("/dashboard");
+      navigateWithinOrigin("/dashboard");
     },
-    [fetchUser, router]
+    [fetchUser]
   );
 
   const register = useCallback(
@@ -107,9 +105,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ignore logout API errors
     } finally {
       setUser(null);
-      router.push("/login");
+      navigateWithinOrigin("/login");
     }
-  }, [router]);
+  }, []);
 
   return (
     <AuthContext.Provider

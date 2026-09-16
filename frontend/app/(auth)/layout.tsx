@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Spinner from "@/components/ui/Spinner";
+import { navigateWithinOrigin } from "@/lib/navigation";
 
 export default function AuthLayout({
   children,
@@ -11,13 +11,11 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   const { isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
-
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      router.replace("/dashboard");
+      navigateWithinOrigin("/dashboard", true);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading]);
 
   if (isLoading) {
     return (
