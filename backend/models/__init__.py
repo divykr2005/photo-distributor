@@ -18,6 +18,8 @@ from models.guest_access_token import GuestAccessToken
 from models.selfie_search_log import SelfieSearchLog
 from models.notification_log import NotificationLog, NotificationChannel, NotificationStatus
 from models.zip_archive import ZipArchive, ZipStatus
+from models.consent import BiometricConsent
+from models.audit_log import AuditLog
 
 __all__ = [
     "User",
@@ -40,6 +42,8 @@ __all__ = [
     "NotificationStatus",
     "ZipArchive",
     "ZipStatus",
+    "BiometricConsent",
+    "AuditLog",
 ]
 
 

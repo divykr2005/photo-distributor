@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, Float, Boolean, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
@@ -17,7 +17,7 @@ class PhotoMatch(Base):
     face_index = Column(Integer, nullable=False, default=0)  # which face in the photo matched
     is_solo = Column(Boolean, default=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     photo = relationship("EventPhoto", backref=backref("matches", cascade="all, delete-orphan"))

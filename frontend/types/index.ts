@@ -23,6 +23,10 @@ export interface Event {
   location: string | null;
   date: string;
   status: "draft" | "active" | "completed" | "cancelled";
+  portal_enabled: boolean;
+  selfie_search_enabled: boolean;
+  upload_mode: "open" | "controlled";
+  min_age_confirmed: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -33,6 +37,10 @@ export interface EventFormData {
   description?: string;
   location?: string;
   date: string;
+  portal_enabled?: boolean;
+  selfie_search_enabled?: boolean;
+  upload_mode?: "open" | "controlled";
+  min_age_confirmed?: boolean;
 }
 
 // ── Dashboard ──

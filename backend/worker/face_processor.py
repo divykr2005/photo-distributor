@@ -1,4 +1,5 @@
 import logging
+from typing import Any, cast
 import cv2
 import numpy as np
 
@@ -72,7 +73,7 @@ class FaceProcessor:
                 "is visible in the photo."
             )
 
-        result = results[0]
+        result: dict[str, Any] = cast(dict[str, Any], results[0])
         self._check_face_size(result)
 
         embedding: list[float] = result["embedding"]   # 512 floats

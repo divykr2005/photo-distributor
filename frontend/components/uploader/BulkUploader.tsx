@@ -53,7 +53,11 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
-    workerRef.current = new Worker(new URL('../../workers/imageResize.worker.ts', import.meta.url));
+    try {
+      workerRef.current = new Worker(new URL('../../workers/imageResize.worker.ts', import.meta.url));
+    } catch (err) {
+      console.warn("Failed to instantiate Web Worker. Bypassing client-side compression.", err);
+    }
     return () => {
       workerRef.current?.terminate();
     };
@@ -153,10 +157,22 @@ export default function BulkUploader({ eventId }: { eventId: string }) {
             )
           );
         } catch (err: any) {
+          let errorMessage = "Upload failed";
+          const detail = err.response?.data?.detail;
+          if (typeof detail === "string") {
+            errorMessage = detail;
+          } else if (Array.isArray(detail) && detail.length > 0) {
+            errorMessage = detail.map((d: any) => (d.msg ? d.msg : JSON.stringify(d))).join(", ");
+          } else if (typeof detail === "object" && detail !== null) {
+            errorMessage = detail.msg || JSON.stringify(detail);
+          } else if (err.message) {
+            errorMessage = err.message;
+          }
+
           setFiles((curr) =>
             curr.map((item) =>
               item.id === target.id
-                ? { ...item, status: "failed", progress: 0, error: err.response?.data?.detail || "Upload failed" }
+                ? { ...item, status: "failed", progress: 0, error: errorMessage }
                 : item
             )
           );

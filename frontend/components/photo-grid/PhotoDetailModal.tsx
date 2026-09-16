@@ -62,6 +62,9 @@ function FaceCropItem({ face }: { face: PhotoFace }) {
 
 export default function PhotoDetailModal({ photo, onClose }: Props) {
   const { objectUrl: webUrl } = useAuthImage(`/media/photos/${photo.id}/web`);
+  const statusLabel = photo.status === "skipped_no_consent"
+    ? "Consent not configured"
+    : photo.status.replaceAll("_", " ");
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -69,7 +72,7 @@ export default function PhotoDetailModal({ photo, onClose }: Props) {
         <div className="flex justify-between items-center px-6 py-4 border-b border-slate-800">
           <div>
             <h3 className="font-bold text-lg text-white">{photo.original_filename}</h3>
-            <p className="text-xs text-slate-400">ID: {photo.id} | Status: <span className="text-indigo-400 font-semibold">{photo.status}</span></p>
+            <p className="text-xs text-slate-400">ID: {photo.id} | Status: <span className="text-indigo-400 font-semibold capitalize">{statusLabel}</span></p>
           </div>
           <button
             onClick={onClose}

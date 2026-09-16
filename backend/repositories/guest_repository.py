@@ -37,8 +37,12 @@ class GuestRepository:
             phone=guest_in.phone,
             email=guest_in.email,
             gender=guest_in.gender,
-            notes=guest_in.notes,
-            consent_given_at=datetime.now(timezone.utc),
+            notes=getattr(guest_in, 'notes', None),
+            # Consent must be explicit; absence must never be converted into consent.
+            consent_given_at=guest_in.consent_given_at,
+            biometric_consent_text_version=getattr(guest_in, 'biometric_consent_text_version', None),
+            consent_source=getattr(guest_in, 'consent_source', None),
+            consent_text_version=getattr(guest_in, 'consent_text_version', None),
             wrapped_dek=dek_blob,
             dek_key_id="local",
         )
@@ -117,7 +121,7 @@ class GuestRepository:
     def update_embedding_status(
         self,
         guest_id: UUID,
-        status: str,
+        status: "EmbeddingStatus | str",
     ) -> Optional[Guest]:
         """Update only the embedding_status on the guest record.
         The actual embedding vector lives in the face_embeddings table.

@@ -1,10 +1,9 @@
-import { API_URL } from "@/lib/config";
 "use client";
 
 import { useState, useEffect, useRef } from "react";
 import { HiOutlineDownload, HiOutlineExclamation, HiOutlineCheck } from "react-icons/hi";
 
-
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 interface ZipJobStatusResponse {
   job_id: string;
@@ -119,14 +118,30 @@ export default function ZipDownloadButton({ accessCode, photoCount }: ZipDownloa
       if (res.status === 503) {
         const errData = await res.json().catch(() => ({}));
         setStatus("failed");
-        setErrorMsg(errData.detail || "Server storage full. Please try again later.");
+
+        let msg = "Server storage full. Please try again later.";
+        if (typeof errData.detail === "string") {
+          msg = errData.detail;
+        } else if (Array.isArray(errData.detail) && errData.detail.length > 0) {
+          msg = errData.detail.map((d: any) => d.msg || "Unknown error").join(", ");
+        }
+
+        setErrorMsg(msg);
         return;
       }
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         setStatus("failed");
-        setErrorMsg(errData.detail || "Failed to start ZIP creation.");
+
+        let msg = "Failed to start ZIP creation.";
+        if (typeof errData.detail === "string") {
+          msg = errData.detail;
+        } else if (Array.isArray(errData.detail) && errData.detail.length > 0) {
+          msg = errData.detail.map((d: any) => d.msg || "Unknown error").join(", ");
+        }
+
+        setErrorMsg(msg);
         return;
       }
 

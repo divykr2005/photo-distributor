@@ -18,6 +18,10 @@ from worker.tasks import process_event_photo_task
 router = APIRouter()
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 @router.post("/{event_id}/photos")
 async def upload_event_photos(
     event_id: UUID,
@@ -36,49 +40,65 @@ async def upload_event_photos(
 
     photo_repo = EventPhotoRepository(db)
     uploaded_records = []
+    failed_records = []
 
     for file in files:
-        if not file.content_type or not file.content_type.startswith("image/"):
-            continue
+        try:
+            if not file.content_type or not file.content_type.startswith("image/"):
+                logger.warning(f"Skipping non-image file: {file.filename}")
+                continue
 
-        content = await file.read()
+            content = await file.read()
 
-        # Reject oversized files (20 MB per photo)
-        if len(content) > 20 * 1024 * 1024:
-            continue
+            # Reject oversized files (20 MB per photo)
+            if len(content) > 20 * 1024 * 1024:
+                logger.warning(f"Skipping oversized file: {file.filename}")
+                continue
 
-        file_ext = file.filename.split(".")[-1] if file.filename and "." in file.filename else "jpg"
+            file_ext = file.filename.split(".")[-1] if file.filename and "." in file.filename else "jpg"
 
-        # Create DB record
-        event_photo = photo_repo.create(
-            event_id=event_id,
-            uploaded_by=current_user.id,  # type: ignore
-            file_path="",  # updated after save
-            file_size=len(content),
-        )
+            # Create DB record
+            event_photo = photo_repo.create(
+                event_id=event_id,
+                uploaded_by=current_user.id,  # type: ignore
+                file_path="",  # updated after save
+                file_size=len(content),
+            )
 
-        # Save file
-        filename = f"{event_photo.id}.{file_ext}"
-        file_path = upload_dir / filename
+            # Save file
+            filename = f"{event_photo.id}.{file_ext}"
+            file_path = upload_dir / filename
 
-        with open(file_path, "wb") as buffer:
-            buffer.write(content)
+            with open(file_path, "wb") as buffer:
+                buffer.write(content)
 
-        # Update file path
-        event_photo.file_path = str(file_path).replace("\\", "/")  # type: ignore
-        db.commit()
+            # Update file path
+            event_photo.file_path = str(file_path).replace("\\", "/")  # type: ignore
+            db.commit()
 
-        # Dispatch to Celery for face matching
-        process_event_photo_task.delay(str(event_photo.id))
+            # Dispatch to Celery for face matching
+            process_event_photo_task.delay(str(event_photo.id))
 
-        uploaded_records.append({
-            "id": str(event_photo.id),
-            "file_path": event_photo.file_path,
-            "file_size": event_photo.file_size,
-            "status": "pending",
-        })
+            uploaded_records.append({
+                "id": str(event_photo.id),
+                "file_path": event_photo.file_path,
+                "file_size": event_photo.file_size,
+                "status": "pending",
+            })
+        except Exception as e:
+            logger.error(f"Error processing file {file.filename}: {e}", exc_info=True)
+            db.rollback()
+            failed_records.append({
+                "filename": file.filename,
+                "error": str(e)
+            })
 
-    return {"uploaded": len(uploaded_records), "photos": uploaded_records}
+    return {
+        "uploaded": len(uploaded_records),
+        "failed": len(failed_records),
+        "photos": uploaded_records,
+        "failed_photos": failed_records
+    }
 
 
 @router.get("/{event_id}/photos")

@@ -4,6 +4,17 @@ from core.config import settings
 
 redis_url = os.getenv("REDIS_URL", getattr(settings, "REDIS_URL", "redis://localhost:6379/0"))
 
+if getattr(settings, "SENTRY_DSN", None):
+    import sentry_sdk
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        integrations=[CeleryIntegration()],
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+    )
+
 celery_app = Celery(
     "photo_distributor",
     broker=redis_url,
@@ -31,6 +42,8 @@ celery_app.conf.update(
     task_time_limit=660,
     task_soft_time_limit=600,
     visibility_timeout=600,
+    task_always_eager=os.getenv("CELERY_TASK_ALWAYS_EAGER", "False").lower() == "true",
+    task_eager_propagates=os.getenv("CELERY_TASK_ALWAYS_EAGER", "False").lower() == "true",
     task_routes={
         "worker.tasks.process_guest_registration_photo_task": {"queue": "faces"},
         "worker.tasks.process_event_photo_task": {"queue": "faces"},
@@ -66,6 +79,24 @@ celery_app.conf.update(
             "schedule": 86400.0,  # Every 24 hours
             "options": {"queue": "maintenance"},
         },
+        "purge-stale-embeddings-daily": {
+            "task": "workers.maintenance.purge_stale_embeddings",
+            "schedule": 86400.0,  # Every 24 hours
+            "options": {"queue": "maintenance"},
+        },
+    },
+    # P1 hardening: expire task results from Redis after 1 hour.
+    # Without this, every task result accumulates in Redis indefinitely.
+    result_expires=3600,
+    # Cap how long a task can sit in the broker queue before being discarded.
+    # Prevents a backlog of stale biometric tasks from running after a restart.
+    task_default_priority=5,
+    task_queue_max_priority=10,
+    # Biometric faces tasks are CPU-heavy; rate-limit to 30/min per worker
+    # so the worker doesn't starve the host during burst ingestion.
+    task_annotations={
+        "workers.faces.extract_faces": {"rate_limit": "30/m"},
+        "worker.tasks.process_guest_registration_photo_task": {"rate_limit": "60/m"},
     },
 )
 

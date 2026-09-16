@@ -2,9 +2,9 @@ import os
 import sys
 import logging
 from pathlib import Path
-import boto3
-from botocore.config import Config
-from botocore.exceptions import ClientError
+import boto3  # type: ignore[import]
+from botocore.config import Config  # type: ignore[import]
+from botocore.exceptions import ClientError  # type: ignore[import]
 
 try:
     from dotenv import load_dotenv
@@ -16,7 +16,7 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-def upload_file_to_oci(file_path: str, object_name: str = None):
+def upload_file_to_oci(file_path: str, object_name: str | None = None):
     """
     Upload a file to Oracle Cloud Infrastructure (OCI) Object Storage using S3 Compatible API.
     """

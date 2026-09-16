@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey, Boolean, Text
+from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey, Boolean, Text, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, backref, deferred
 
@@ -29,7 +29,7 @@ class PhotoFace(Base):
     det_score = Column(Float, nullable=False)
 
     # Defer loading embedding vector by default so standard queries don't pull 51MB into RAM
-    embedding = deferred(Column(Vector(512) if VECTOR_AVAILABLE else Text, nullable=False))  # type: ignore
+    embedding = deferred(Column(Vector(512) if VECTOR_AVAILABLE else Text, nullable=True))  # type: ignore
     model_version = Column(String(100), nullable=False, default="buffalo_l")
     embedding_dim = Column(Integer, nullable=False, default=512)
 
@@ -50,6 +50,16 @@ class PhotoFace(Base):
     scoring_model_version = Column(String(100), nullable=True)
     scored_at = Column(DateTime(timezone=True), nullable=True)
     erasure_redacted = Column(Boolean, nullable=False, default=False)
+
+    # ── Encrypted embedding storage (P0 requirement) ─────────────────────
+    # The plaintext `embedding` column is kept for pgvector index compatibility
+    # but MUST remain NULL for all newly written rows. Use embedding_enc instead.
+    embedding_enc = Column(LargeBinary, nullable=True)   # AES-256-GCM ciphertext + tag
+    enc_nonce = Column(LargeBinary, nullable=True)        # 12-byte GCM nonce
+    enc_key_id = Column(String(100), nullable=True)       # key reference ("local" or KMS key ID)
+    # Provenance: which upload_mode / lawful basis was in place when this face was extracted.
+    lawful_basis = Column(String(50), nullable=True)      # e.g. "controlled_event_consent"
+    # ─────────────────────────────────────────────────────────────────────
 
     is_matchable = Column(Boolean, nullable=False, default=True)
     quality_flags = Column(JSONB, nullable=True)

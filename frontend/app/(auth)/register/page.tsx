@@ -36,9 +36,15 @@ export default function RegisterPage() {
     try {
       await registerUser(data);
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data
-          ?.detail || "Registration failed. Please try again.";
+      let message = "Registration failed. Please try again.";
+      const detail = (err as any).response?.data?.detail;
+      if (typeof detail === "string") {
+        message = detail;
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        message = detail.map((d: any) => d.msg || "Unknown error").join(", ");
+      } else if ((err as any).message) {
+        message = (err as any).message;
+      }
       setError(message);
     } finally {
       setIsSubmitting(false);

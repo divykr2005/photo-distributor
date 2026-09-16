@@ -11,15 +11,15 @@ def test_prod_env_rejects_localhost_urls():
     os.environ["ENVIRONMENT"] = "prod"
     os.environ["FRONTEND_URL"] = "http://localhost:3000"
     os.environ["API_BASE_URL"] = "http://localhost:8000/api/v1"
-    
+
     # Need to defer importing settings so it picks up the patched env
-    from backend.core.config import Settings
-    
+    from core.config import Settings
+
     with pytest.raises(ValidationError) as exc:
         Settings()
-    
+
     assert "localhost URL in prod" in str(exc.value)
-    
+
     # Cleanup
     del os.environ["ENVIRONMENT"]
     del os.environ["FRONTEND_URL"]
@@ -32,13 +32,36 @@ def test_dev_env_allows_localhost_urls():
     os.environ["ENVIRONMENT"] = "dev"
     os.environ["FRONTEND_URL"] = "http://localhost:3000"
     os.environ["API_BASE_URL"] = "http://localhost:8000/api/v1"
-    
-    from backend.core.config import Settings
-    
+
+    from core.config import Settings
+
     settings = Settings()
     assert str(settings.FRONTEND_URL).rstrip("/") == "http://localhost:3000"
     assert str(settings.API_BASE_URL).rstrip("/") == "http://localhost:8000/api/v1"
-    
+
+    # Cleanup
+    del os.environ["ENVIRONMENT"]
+    del os.environ["FRONTEND_URL"]
+    del os.environ["API_BASE_URL"]
+
+
+def test_magic_link_url_construction():
+    """
+    Test that the magic link portal_url constructed using settings.FRONTEND_URL
+    results in a valid URL, handling trailing slashes correctly.
+    """
+    os.environ["ENVIRONMENT"] = "dev"
+    os.environ["FRONTEND_URL"] = "https://example.com"
+    os.environ["API_BASE_URL"] = "https://api.example.com/api/v1"
+
+    from core.config import Settings
+    settings = Settings()
+
+    plaintext = "test_token_123"
+    portal_url = f"{str(settings.FRONTEND_URL).rstrip('/')}/g/{plaintext}"
+
+    assert portal_url == f"https://example.com/g/{plaintext}"
+
     # Cleanup
     del os.environ["ENVIRONMENT"]
     del os.environ["FRONTEND_URL"]

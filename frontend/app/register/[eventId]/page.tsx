@@ -1,4 +1,3 @@
-import { API_URL } from "@/lib/config";
 "use client";
 
 import { useParams } from "next/navigation";
@@ -8,13 +7,16 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Toast from "@/components/ui/Toast";
 import api from "@/lib/api";
+import { auth } from "@/lib/firebase";
+import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth";
 
-
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 interface EventInfo {
   id: string;
   title: string;
   date: string;
+  biometric_consent_text_version: string;
 }
 
 export default function MobileRegistrationPage() {
@@ -24,18 +26,32 @@ export default function MobileRegistrationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
-  
+
   // Form state
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [gender, setGender] = useState("");
-  const [whatsappConsent, setWhatsappConsent] = useState(false);
   const [selfie, setSelfie] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  // OTP State
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [verificationResult, setVerificationResult] = useState<ConfirmationResult | null>(null);
+  const [firebaseToken, setFirebaseToken] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Initialize recaptcha when component mounts
+    if (auth && !(window as any).recaptchaVerifier) {
+      (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+        size: "invisible",
+      });
+    }
+  }, []);
 
   useEffect(() => {
     if (!eventId) return;
@@ -64,12 +80,42 @@ export default function MobileRegistrationPage() {
     }
   };
 
+  const handleSendOtp = async () => {
+    if (!phone || !auth) return;
+    setError("");
+    try {
+      const appVerifier = (window as any).recaptchaVerifier;
+      const result = await signInWithPhoneNumber(auth, phone, appVerifier);
+      setVerificationResult(result);
+      setOtpSent(true);
+    } catch (err: any) {
+      setError(err.message || "Failed to send OTP.");
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!verificationResult || !otp) return;
+    setError("");
+    try {
+      const result = await verificationResult.confirm(otp);
+      const token = await result.user.getIdToken();
+      setFirebaseToken(token);
+    } catch (err: any) {
+      setError(err.message || "Invalid OTP.");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
     if (!selfie) {
       setError("Please take a selfie to register.");
+      return;
+    }
+
+    if (!firebaseToken) {
+      setError("Please verify your phone number first.");
       return;
     }
 
@@ -81,15 +127,19 @@ export default function MobileRegistrationPage() {
     formData.append("phone", phone);
     if (email) formData.append("email", email);
     if (gender) formData.append("gender", gender);
-    if (whatsappConsent) {
-      formData.append("whatsapp_consent", "true");
-      formData.append("whatsapp_consent_text_version", "v1.0");
-    }
     formData.append("file", selfie);
-
+    // Required by backend — biometric consent is implicit in this public registration form
+    formData.append("biometric_consent", "true");
+    formData.append(
+      "biometric_consent_text_version",
+      eventInfo?.biometric_consent_text_version || ""
+    );
     try {
       const res = await fetch(`${API_URL}/public/events/${eventId}/register`, {
         method: "POST",
+        headers: {
+          "Authorization": `Bearer ${firebaseToken}`
+        },
         body: formData,
       });
 
@@ -135,7 +185,7 @@ export default function MobileRegistrationPage() {
         </div>
         <h1 className="text-3xl font-bold text-white tracking-tight mb-3">You're In!</h1>
         <p className="text-zinc-400 text-base leading-relaxed max-w-sm">
-          Thanks for registering for <strong className="text-white">{eventInfo?.title}</strong>. 
+          Thanks for registering for <strong className="text-white">{eventInfo?.title}</strong>.
           <br /><br />
           We will notify you automatically the moment your photos are ready!
         </p>
@@ -163,10 +213,10 @@ export default function MobileRegistrationPage() {
       {/* Form */}
       <main className="px-6 pt-8">
         <form onSubmit={handleSubmit} className="space-y-6">
-          
+
           {/* Selfie Uploader */}
           <div className="flex flex-col items-center">
-            <input 
+            <input
               type="file"
               accept="image/*"
               capture="user"
@@ -174,13 +224,13 @@ export default function MobileRegistrationPage() {
               onChange={handleFileChange}
               className="hidden"
             />
-            
+
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className={`relative overflow-hidden w-40 h-40 rounded-full border-2 flex flex-col items-center justify-center transition-all shadow-xl ${
-                previewUrl 
-                  ? 'border-indigo-500 shadow-indigo-500/20' 
+                previewUrl
+                  ? 'border-indigo-500 shadow-indigo-500/20'
                   : 'border-dashed border-zinc-700 bg-zinc-900 hover:border-indigo-500/50 hover:bg-zinc-800'
               }`}
             >
@@ -232,15 +282,58 @@ export default function MobileRegistrationPage() {
               />
             </div>
 
-            <Input
-              label="Phone Number"
-              name="phone"
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-              placeholder="+1 (555) 000-0000"
-            />
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <Input
+                  label="Phone Number"
+                  name="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                  placeholder="+1 (555) 000-0000"
+                  disabled={otpSent || !!firebaseToken}
+                />
+              </div>
+              {!firebaseToken && (
+                <Button
+                  type="button"
+                  onClick={handleSendOtp}
+                  disabled={!phone || otpSent}
+                >
+                  {otpSent ? "Sent" : "Verify"}
+                </Button>
+              )}
+            </div>
+
+            {otpSent && !firebaseToken && (
+              <div className="flex gap-2 items-end mt-2 animate-in fade-in zoom-in duration-300">
+                <div className="flex-1">
+                  <Input
+                    label="Enter OTP"
+                    name="otp"
+                    type="text"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    required
+                    placeholder="123456"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleVerifyOtp}
+                  disabled={!otp}
+                >
+                  Confirm
+                </Button>
+              </div>
+            )}
+
+            {firebaseToken && (
+              <p className="text-emerald-400 text-sm font-medium flex items-center gap-1">
+                <HiOutlineCheckCircle className="w-5 h-5"/> Phone Verified
+              </p>
+            )}
 
             <Input
               label="Email Address"
@@ -267,37 +360,20 @@ export default function MobileRegistrationPage() {
                 <option value="prefer_not_to_say">Prefer not to say</option>
               </select>
             </div>
-            
-            <div className="flex items-start gap-3 p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
-              <div className="flex items-center h-5 mt-0.5">
-                <input
-                  id="whatsappConsent"
-                  type="checkbox"
-                  checked={whatsappConsent}
-                  onChange={(e) => setWhatsappConsent(e.target.checked)}
-                  className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-zinc-900"
-                />
-              </div>
-              <div className="flex flex-col">
-                <label htmlFor="whatsappConsent" className="text-sm font-medium text-white cursor-pointer">
-                  Send me my photos on WhatsApp
-                </label>
-                <p className="text-xs text-zinc-400 mt-1">
-                  We will send a secure link to your photos directly to your WhatsApp when they are ready. No spam.
-                </p>
-              </div>
-            </div>
           </div>
 
           <div className="pt-4">
-            <Button
-              variant="primary"
-              type="submit"
-              isLoading={submitting}
-              className="w-full py-4 text-lg rounded-2xl shadow-indigo-500/20 shadow-xl"
-            >
-              Complete Registration
-            </Button>
+            {/* Recaptcha Container */}
+          <div id="recaptcha-container"></div>
+
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={submitting || !firebaseToken}
+            className="w-full h-12 text-base font-semibold mt-8 shadow-indigo-500/25"
+          >
+            {submitting ? "Registering..." : "Submit Registration"}
+          </Button>
             <p className="text-center text-xs text-zinc-600 mt-4 px-4 leading-relaxed">
               By registering, you consent to our secure facial recognition AI processing your selfie solely for the purpose of delivering your event photos.
             </p>

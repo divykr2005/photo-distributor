@@ -4,25 +4,25 @@ phases:
     status: in_progress
   - id: 1
     name: "Configuration contract and single source of URL truth"
-    status: pending
+    status: complete
   - id: 2
     name: "Traefik, TLS, and edge hardening"
-    status: pending
+    status: complete
   - id: 3
     name: "Auth persistence (revised to cookies)"
-    status: pending
+    status: complete
   - id: 4
     name: "Guest CRUD without embedding loss"
-    status: pending
+    status: complete
   - id: 5
     name: "Notification provider abstraction, then WhatsApp"
-    status: pending
+    status: complete
   - id: 6
     name: "UI cleanup behind flags"
-    status: pending
+    status: complete
   - id: 7
     name: "Consolidate the matching path"
-    status: pending
+    status: completed
   - id: 8
     name: "Operability"
     status: pending

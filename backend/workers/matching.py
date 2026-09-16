@@ -48,6 +48,24 @@ def run_guest_match(self, event_id_str: str, guest_id_str: str) -> dict:
     """Celery task: Fast matching for a single newly registered guest."""
     db = SessionLocal()
     try:
+        # Consent withdrawal gate — check before touching the matching service.
+        # A task queued before withdrawal must not run after it.
+        from models.consent import BiometricConsent
+        active_consent = (
+            db.query(BiometricConsent)
+            .filter(
+                BiometricConsent.guest_id == guest_id_str,
+                BiometricConsent.withdrawn_at.is_(None),
+            )
+            .first()
+        )
+        if not active_consent:
+            logger.warning(
+                "run_guest_match: consent absent or withdrawn for guest %s — skipping match.",
+                guest_id_str,
+            )
+            return {"status": "skipped_no_consent", "guest_id": guest_id_str}
+
         service = MatchingService(db)
         result = service.match_guest(event_id_str, guest_id_str)
         logger.info(f"run_guest_match completed for guest {guest_id_str}: {result}")

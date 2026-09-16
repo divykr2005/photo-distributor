@@ -4,9 +4,18 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from api.endpoints import auth, events, dashboard, guests, event_photos, photos, uploads, matches, media, pipeline, magic_links, public, public_media, public_selfie, public_download, public_zip, notifications, clusters, public_registration, webhooks
+from api.endpoints import auth, events, dashboard, guests, photos, uploads, matches, media, pipeline, magic_links, public, public_media, public_selfie, public_download, public_zip, notifications, clusters, public_registration, webhooks
 from core.config import settings
 from middleware.rate_limit import limiter
+
+if settings.SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+    )
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -24,6 +33,7 @@ async def log_public_urls():
 origins = [str(settings.FRONTEND_URL).rstrip("/")]
 if settings.ENVIRONMENT == "dev":
     origins.append("http://localhost:3000")
+    origins.append("http://localhost:3001")
     
 app.add_middleware(
     CORSMiddleware,
@@ -63,9 +73,7 @@ app.include_router(
 app.include_router(
     photos.router, prefix=f"{settings.API_V1_STR}", tags=["photos"]
 )
-app.include_router(
-    event_photos.router, prefix=f"{settings.API_V1_STR}/events", tags=["event_photos"]
-)
+
 app.include_router(
     uploads.router, prefix=f"{settings.API_V1_STR}", tags=["uploads"]
 )
@@ -116,15 +124,45 @@ app.include_router(
     webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks", tags=["webhooks"]
 )
 
+from api.endpoints import privacy
+app.include_router(
+    privacy.router, prefix=f"{settings.API_V1_STR}", tags=["privacy"]
+)
+
 import os
 from fastapi import HTTPException
 from fastapi.responses import Response, FileResponse
 from services.storage import get_storage_backend
+from api.dependencies import get_current_user, get_db
+from models.event import Event
+from models.guest import Guest
+from models.user import User
+from fastapi import Depends
+from sqlalchemy.orm import Session
 # Serve uploaded files via storage backend (supports Local AND R2 seamlessly)
 @app.get("/uploads/{file_path:path}")
-def serve_uploads(file_path: str):
+def serve_uploads(
+    file_path: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     storage = get_storage_backend()
     storage_key = f"uploads/{file_path}"
+
+    # This legacy route is used only for organizer-visible guest reference
+    # images. Authorize the exact stored key through the owning event before
+    # reading any bytes; arbitrary object keys must never be public.
+    authorized = (
+        db.query(Guest.id)
+        .join(Event, Event.id == Guest.event_id)
+        .filter(
+            Guest.image_path == storage_key,
+            Event.created_by == current_user.id,
+        )
+        .first()
+    )
+    if not authorized:
+        raise HTTPException(status_code=404, detail="File not found")
     try:
         data = storage.get(storage_key)
         if data:
@@ -154,9 +192,6 @@ def healthz():
     return {"status": "ok"}
 
 from sqlalchemy import text
-from api.dependencies import get_db
-from fastapi import Depends
-from sqlalchemy.orm import Session
 import redis
 from core.config import get_redis_url
 

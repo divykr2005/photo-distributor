@@ -39,11 +39,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // On mount: attempt to fetch user (interceptor handles silent refresh if needed)
   useEffect(() => {
+    let active = true;
     const initAuth = async () => {
-      await fetchUser();
-      setIsLoading(false);
+      try {
+        console.log("AuthContext: Starting fetchUser...");
+        await fetchUser();
+        console.log("AuthContext: fetchUser completed.");
+      } catch (err) {
+        console.error("AuthContext: fetchUser threw:", err);
+      } finally {
+        if (active) {
+          console.log("AuthContext: Setting isLoading to false");
+          setIsLoading(false);
+        }
+      }
     };
     initAuth();
+
+    const failsafe = setTimeout(() => {
+      if (active) {
+        console.warn("AuthContext: Failsafe triggered, setting isLoading to false!");
+        setIsLoading(false);
+      }
+    }, 2000);
+
+    return () => {
+      active = false;
+      clearTimeout(failsafe);
+    };
   }, [fetchUser]);
 
   const login = useCallback(

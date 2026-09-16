@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
@@ -19,7 +19,7 @@ class EventPhoto(Base):
     faces_detected = Column(Integer, default=0)
     status = Column(String, default="pending")  # pending, processing, success, failed
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     event = relationship("Event", backref=backref("photos", cascade="all, delete-orphan"))

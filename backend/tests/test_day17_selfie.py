@@ -7,8 +7,9 @@ from worker.face_processor import FaceQualityError
 def test_public_event_info_and_selfie_disabled(client: TestClient):
     # Register & Login user
     client.post("/api/v1/auth/register", json={"name": "S", "email": "s@ex.com", "password": "p"})
-    token = client.post("/api/v1/auth/login", data={"username": "s@ex.com", "password": "p"}).json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+    client.post("/api/v1/auth/login", data={"username": "s@ex.com", "password": "p"})
+    csrf = client.cookies.get("csrf_token", "")
+    headers = {"x-csrf-token": csrf}
 
     # Create event with default selfie_search_enabled = False
     ev_resp = client.post("/api/v1/events/", json={"title": "Disabled Event", "date": "2026-10-01T10:00:00Z"}, headers=headers)
@@ -27,8 +28,9 @@ def test_public_event_info_and_selfie_disabled(client: TestClient):
 def test_selfie_search_flow(client: TestClient, tmp_path):
     # Setup user & event with selfie_search_enabled = True
     client.post("/api/v1/auth/register", json={"name": "S2", "email": "s2@ex.com", "password": "p"})
-    token = client.post("/api/v1/auth/login", data={"username": "s2@ex.com", "password": "p"}).json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+    client.post("/api/v1/auth/login", data={"username": "s2@ex.com", "password": "p"})
+    csrf = client.cookies.get("csrf_token", "")
+    headers = {"x-csrf-token": csrf}
 
     ev_resp = client.post("/api/v1/events/", json={"title": "Selfie Event", "date": "2026-10-01T10:00:00Z"}, headers=headers)
     event_id = ev_resp.json()["id"]

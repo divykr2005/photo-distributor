@@ -19,10 +19,7 @@ class EventRepository:
         kek_blob = nonce + wrapped_kek
         
         db_event = Event(
-            title=event_in.title,
-            description=event_in.description,
-            location=event_in.location,
-            date=event_in.date,
+            **event_in.model_dump(),
             created_by=user_id,
             wrapped_kek=kek_blob,
             kek_key_id="local",

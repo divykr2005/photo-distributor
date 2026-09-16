@@ -18,6 +18,9 @@ from models.photo import Photo
 from models.photo_face import PhotoFace
 from schemas.photo import PhotoUploadResponse, PhotoResponse, PhotoListResponse
 from services.storage import get_storage_backend
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -193,6 +196,7 @@ async def upload_photo(
                 pass
         raise
     except Exception as e:
+        logger.error(f"Upload failed: {str(e)}", exc_info=True)
         if os.path.exists(tmp_path):
             try:
                 os.unlink(tmp_path)

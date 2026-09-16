@@ -1,4 +1,3 @@
-import { API_URL } from "@/lib/config";
 "use client";
 
 import { useParams } from "next/navigation";
@@ -15,7 +14,7 @@ import {
   HiOutlineDownload,
 } from "react-icons/hi";
 
-
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 interface EventInfo {
   id: string;
@@ -101,15 +100,27 @@ export default function SelfieSearchPage() {
       });
 
       if (res.status === 422) {
-        const errData = await res.json();
-        setSearchError(errData.detail || "Quality check failed. Please upload a clear selfie.");
+        const errData = await res.json().catch(() => ({}));
+        let msg = "Quality check failed. Please upload a clear selfie.";
+        if (typeof errData.detail === "string") {
+          msg = errData.detail;
+        } else if (Array.isArray(errData.detail) && errData.detail.length > 0) {
+          msg = errData.detail.map((d: any) => d.msg || "Unknown error").join(", ");
+        }
+        setSearchError(msg);
         setSearching(false);
         return;
       }
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        setSearchError(errData.detail || "Search failed. Please try again.");
+        let msg = "Search failed. Please try again.";
+        if (typeof errData.detail === "string") {
+          msg = errData.detail;
+        } else if (Array.isArray(errData.detail) && errData.detail.length > 0) {
+          msg = errData.detail.map((d: any) => d.msg || "Unknown error").join(", ");
+        }
+        setSearchError(msg);
         setSearching(false);
         return;
       }

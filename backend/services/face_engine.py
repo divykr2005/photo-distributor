@@ -43,7 +43,7 @@ class FaceEngine:
 
         model_name = os.getenv("INSIGHTFACE_MODEL", "buffalo_l")
         det_size_val = int(os.getenv("INSIGHTFACE_DET_SIZE", "640"))
-        
+
         logger.info(f"Initializing InsightFace FaceEngine with model={model_name}, det_size={det_size_val}")
         self.app = FaceAnalysis(name=model_name, allowed_modules=["detection", "recognition"], providers=['CPUExecutionProvider'])
         self.app.prepare(ctx_id=0, det_size=(det_size_val, det_size_val))
@@ -163,14 +163,14 @@ class FaceEngine:
                 pitch, yaw, roll = float(face.pose[0]), float(face.pose[1]), float(face.pose[2])
 
             landmarks_2d106 = face.landmark_2d_106 if hasattr(face, "landmark_2d_106") else None
-            
+
             # W4.D23: new quality sub-scores
             sh_score = sharpness_score(web_bgr, (x1, y1, x2, y2))
             eo_score = eye_open_score(landmarks_2d106)
             sm_score = smile_score(landmarks_2d106)
             fr_score = frontality_score(yaw, pitch, roll)
             ex_score = exposure_score(web_bgr, (x1, y1, x2, y2))
-            
+
             composite = compute_composite(sh_score, eo_score, fr_score, ex_score, sm_score)
 
             # Quality evaluation & flags
@@ -234,30 +234,45 @@ class FaceEngine:
         Returns (embedding_list, quality_score).
         Raises ValueError if quality checks fail.
         """
-        img = cv2.imread(image_path, cv2.IMREAD_REDUCED_COLOR_2)
-        if img is None:
+        try:
+            pil_img = Image.open(image_path)
+            pil_img = ImageOps.exif_transpose(pil_img)
+            if pil_img.mode != "RGB":
+                pil_img = pil_img.convert("RGB")
+
+            # Resize if too large to match IMREAD_REDUCED_COLOR_2 behavior roughly
+            max_size = 1600
+            if max(pil_img.size) > max_size:
+                pil_img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+
+            img_np = np.array(pil_img)
+            img = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+        except Exception as e:
+            raise ValueError(f"Could not read the image file: {e}")
+
+        if img is None or img.size == 0:
             raise ValueError("Could not read the image file.")
-            
+
         faces = self.app.get(img)
         if not faces:
             raise ValueError("No face detected in the image.")
         if len(faces) > 1:
             raise ValueError(f"{len(faces)} faces detected. Please ensure only one person is visible.")
-            
+
         face = faces[0]
         det_score = float(face.det_score) if hasattr(face, "det_score") else 1.0
-        
+
         # Check blur
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
         if blur_score < LAPLACIAN_BLUR_FLOOR:
             raise ValueError("Image is too blurry. Please retake the photo.")
-            
+
         # Normalize embedding
         emb = face.embedding.astype(np.float32)
         norm = np.linalg.norm(emb)
         if norm > 0:
             emb = emb / norm
-            
+
         overall_quality = round(det_score * min(1.0, blur_score / 100.0), 4)
         return emb.tolist(), overall_quality

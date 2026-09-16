@@ -1,14 +1,15 @@
-version: '3.8'
+
 
 services:
   db-test:
-    image: ankane/pgvector:v0.4.2
+    image: pgvector/pgvector:pg16  # official image with hnsw support
     environment:
       POSTGRES_USER: test_user
       POSTGRES_PASSWORD: test_password
       POSTGRES_DB: test_db
     ports:
       - "5433:5432"
+    command: ["postgres", "-c", "shared_preload_libraries=vector"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U test_user -d test_db"]
       interval: 5s

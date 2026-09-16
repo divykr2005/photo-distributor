@@ -123,13 +123,26 @@ class R2Storage(StorageBackend):
                 return None
             raise
 
-    def presigned_url(self, key: str, expires_in: int = 3600) -> str:
+    def presigned_url(self, key: str, expires_in: int = 300) -> str:
         """
-        Generate a time-limited pre-signed GET URL.
-        Useful if you want to redirect the browser directly to R2
-        instead of proxying bytes through your backend.
-        expires_in: seconds until expiry (default 1 hour)
+        Generate a time-limited pre-signed GET URL for R2.
+
+        P1 security: default TTL is 5 minutes (300 s).
+        Biometric crop images and selfies must use the default or shorter.
+        Only non-sensitive bulk downloads may use a longer TTL — document the
+        reason at the call site if overriding this value.
+
+        Args:
+            key:        Object key in the bucket.
+            expires_in: Seconds until URL expiry. Max accepted by R2 is 604800 (7 d).
         """
+        if expires_in > 300:
+            import logging
+            logging.getLogger(__name__).info(
+                "presigned_url: extended TTL %ds requested for key=%s — "
+                "ensure this is not a biometric asset.",
+                expires_in, key,
+            )
         return self.client.generate_presigned_url(
             "get_object",
             Params={"Bucket": self.bucket, "Key": key},

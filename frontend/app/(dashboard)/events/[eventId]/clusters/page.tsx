@@ -1,4 +1,3 @@
-import { API_URL } from "@/lib/config";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -52,16 +51,6 @@ export default function ReviewClustersPage() {
     }
   };
 
-  if (process.env.NEXT_PUBLIC_FEATURE_EXPERIMENTAL_AI !== 'true') {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <h2 className="text-xl font-semibold text-white mb-2">Experimental Feature</h2>
-        <p className="text-slate-400">This AI feature is currently disabled.</p>
-        <Button className="mt-6" onClick={() => router.push(`/events/${eventId}`)}>Back to Event</Button>
-      </div>
-    );
-  }
-
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -108,7 +97,7 @@ export default function ReviewClustersPage() {
                 {cluster.representative_photo_id ? (
                   <div className="aspect-square relative rounded-md overflow-hidden bg-slate-800">
                     <Image
-                      src={`${API_URL}/photos/${cluster.representative_photo_id}/thumb`}
+                      src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/media/photos/${cluster.representative_photo_id}/thumb`}
                       alt="Representative"
                       fill
                       className="object-cover"

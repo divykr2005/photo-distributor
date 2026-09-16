@@ -56,6 +56,20 @@ def generate_guest_zip(zip_archive_id: str):
         photo_map = {p.id: p for p in photos}
         ordered_photos = [photo_map[pid] for pid in photo_ids if pid in photo_map]
 
+        archive_id_str = str(archive.id)
+        event_id_str = str(archive.event_id)
+        guest_id_str = str(archive.guest_id)
+
+        photo_data = []
+        for p in ordered_photos:
+            photo_data.append({
+                "id": str(p.id),
+                "storage_key": p.storage_key,
+                "web_key": p.web_key,
+                "thumb_key": p.thumb_key,
+                "original_filename": p.original_filename
+            })
+
         db.execute(
             update(ZipArchive)
             .where(ZipArchive.id == archive_id_uuid)
@@ -75,10 +89,10 @@ def generate_guest_zip(zip_archive_id: str):
         storage_root = getattr(storage, "root_dir", None) or os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads"
         )
-        zip_dir = os.path.abspath(os.path.join(storage_root, "zips", str(archive.event_id)))
+        zip_dir = os.path.abspath(os.path.join(storage_root, "zips", event_id_str))
         os.makedirs(zip_dir, exist_ok=True)
 
-        final_zip_path = os.path.join(zip_dir, f"guest_{archive.guest_id}_{archive.id}.zip")
+        final_zip_path = os.path.join(zip_dir, f"guest_{guest_id_str}_{archive_id_str}.zip")
         temp_zip_path = f"{final_zip_path}.tmp"
 
         zf = zipfile.ZipFile(temp_zip_path, "w", compression=zipfile.ZIP_STORED)
@@ -86,18 +100,19 @@ def generate_guest_zip(zip_archive_id: str):
         with zf:
             processed_bytes = 0
             last_update_time = time.time()
-            for idx, photo in enumerate(ordered_photos, start=1):
+            for idx, photo in enumerate(photo_data, start=1):
                 stream = None
                 for key_attr in ("storage_key", "web_key", "thumb_key"):
-                    k = getattr(photo, key_attr, None)
+                    k = photo.get(key_attr)
                     if k:
                         stream = storage.get_stream(str(k))
                         if stream:
                             break
                             
                 if stream:
-                    ext = photo.original_filename.rsplit(".", 1)[-1] if (photo.original_filename and "." in photo.original_filename) else "jpg"
-                    arc_name = f"photo_{idx:04d}_{str(photo.id)[:8]}.{ext}"
+                    orig_name = photo.get("original_filename") or ""
+                    ext = orig_name.rsplit(".", 1)[-1] if "." in orig_name else "jpg"
+                    arc_name = f"photo_{idx:04d}_{photo['id'][:8]}.{ext}"
                     
                     try:
                         with zf.open(arc_name, "w") as zf_out:
@@ -107,6 +122,8 @@ def generate_guest_zip(zip_archive_id: str):
                     
                     info = zf.getinfo(arc_name)
                     processed_bytes += info.file_size
+                else:
+                    logger.warning(f"Storage stream not found for photo {photo['id']}")
 
                 now_ts = time.time()
                 if (now_ts - last_update_time > 5.0) or idx == len(ordered_photos):
@@ -121,6 +138,22 @@ def generate_guest_zip(zip_archive_id: str):
                     )
                     db.commit()
                     last_update_time = now_ts
+
+        if processed_bytes == 0:
+            if os.path.exists(temp_zip_path):
+                os.remove(temp_zip_path)
+            db.execute(
+                update(ZipArchive)
+                .where(ZipArchive.id == archive_id_uuid)
+                .values(
+                    status=ZipStatus.FAILED.value,
+                    error_message="All photos were missing from storage (0 bytes processed)",
+                    updated_at=datetime.now(timezone.utc)
+                )
+            )
+            db.commit()
+            logger.error(f"ZipArchive {zip_archive_id} failed: all photos missing from storage")
+            return
 
         if os.path.exists(final_zip_path):
             os.remove(final_zip_path)
@@ -141,6 +174,8 @@ def generate_guest_zip(zip_archive_id: str):
         logger.info(f"ZipArchive {zip_archive_id} created successfully at {final_zip_path}")
 
     except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
         logger.exception(f"Error generating ZIP archive {zip_archive_id}: {e}")
         db.rollback()
         if temp_zip_path and os.path.exists(temp_zip_path):
@@ -152,7 +187,7 @@ def generate_guest_zip(zip_archive_id: str):
         err_archive: Any = db.query(ZipArchive).filter(ZipArchive.id == UUID(zip_archive_id)).first()
         if err_archive:
             err_archive.status = ZipStatus.FAILED.value
-            err_archive.error_message = str(e)
+            err_archive.error_message = f"{e}\n\n{tb}"
             err_archive.updated_at = datetime.now(timezone.utc)
             db.commit()
     finally:

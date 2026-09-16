@@ -13,15 +13,26 @@ class KeyProvider(ABC):
 
 class LocalKeyProvider(KeyProvider):
     """
-    Retrieves the master key from environment variables.
+    Retrieves the master key from the application settings.
     Intended for development and local testing.
+    For production, replace with KmsKeyProvider.
     """
     def unwrap_master_key(self) -> bytes:
-        # In a real scenario, this would be a 32-byte hex string or base64
-        # We'll use a dummy key if not found, just for this example
-        key_hex = os.getenv("MASTER_KEY_HEX", "0" * 64)
+        from core.config import settings
+        key_hex = settings.MASTER_KEY_HEX
         if len(key_hex) != 64:
             raise ValueError("MASTER_KEY_HEX must be exactly 64 hex characters (32 bytes)")
+        if key_hex == "0" * 64:
+            import os
+            if os.getenv("ENVIRONMENT", "dev") == "prod":
+                raise ValueError(
+                    "MASTER_KEY_HEX is the all-zeros placeholder. "
+                    "Set a real key before running in production."
+                )
+            logger.warning(
+                "MASTER_KEY_HEX is the all-zeros placeholder — "
+                "this is only acceptable in local development."
+            )
         return bytes.fromhex(key_hex)
 
 class KmsKeyProvider(KeyProvider):

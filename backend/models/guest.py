@@ -45,8 +45,6 @@ class Guest(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
-    
-    whatsapp_consent_at = Column(DateTime(timezone=True), nullable=True)
     consent_source = Column(String(50), nullable=True)
     consent_text_version = Column(String(50), nullable=True)
 
@@ -56,6 +54,10 @@ class Guest(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc) + timedelta(days=15),
     )
+
+    # Phase 9: Biometrics consent and retention
+    biometric_consent_text_version = Column(String(50), nullable=True)
+    biometrics_purged_at = Column(DateTime(timezone=True), nullable=True)
 
     # Week 3: notification fields
     notify_opt_out_at = Column(DateTime(timezone=True), nullable=True)

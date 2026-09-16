@@ -5,7 +5,6 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { TaskProvider } from "@/contexts/TaskContext";
 import GlobalTaskWidget from "@/components/ui/GlobalTaskWidget";
 
-export const runtime = 'edge';
 
 const albert = Albert_Sans({
   subsets: ["latin"],

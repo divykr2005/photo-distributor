@@ -140,12 +140,6 @@ def dispatch_guest_notification(
             db.commit()
             return {"status": NotificationStatus.SKIPPED_OPT_OUT.value}
 
-        # 1b. WhatsApp consent check
-        if channel == "meta_whatsapp" and not guest.whatsapp_consent_at:
-            logger.info(f"[NOTIFY] Guest {guest_id} missing WhatsApp consent. Falling back to email.")
-            # Fallback to email if WhatsApp not consented
-            channel = "smtp"
-
         # 2. Count visible photos
         matches = visible_matches(db, str(guest.id)).all()  # type: ignore
         photo_count = len(matches)
@@ -215,7 +209,9 @@ def dispatch_guest_notification(
         # 6. Render templates & Dispatch
         app_url = str(settings.FRONTEND_URL).rstrip("/")
         magic_link = f"{app_url}/g/{raw_token}"
-        opt_out_link = f"{app_url}/api/v1/public/opt-out?guest_id={guest.id}"
+        from services.opt_out import create_opt_out_token
+        opt_out_token = create_opt_out_token(guest.id)  # type: ignore[arg-type]
+        opt_out_link = f"{app_url}/api/v1/public/opt-out?token={opt_out_token}"
         recipient = guest.email if channel == "smtp" else (guest.phone or guest.email or "console")
 
         subject, text_body, html_body = render_email_template(
@@ -248,12 +244,13 @@ def dispatch_guest_notification(
             db.commit()
             return {"status": NotificationStatus.SENT.value, "provider_message_id": res.provider_message_id}
         else:
-            existing_log.attempts = int(existing_log.attempts or 0) + 1  # type: ignore
+            current_attempts: int = getattr(existing_log, "attempts", 0) or 0
+            existing_log.attempts = current_attempts + 1  # type: ignore
             existing_log.error = res.error  # type: ignore
             existing_log.provider = res.provider  # type: ignore
 
-            if res.is_transient and int(existing_log.attempts or 0) < 5:
-                backoff_sec = 60 * (2 ** int(existing_log.attempts or 0)) + random.randint(1, 10)
+            if res.is_transient and current_attempts < 5:
+                backoff_sec = 60 * (2 ** current_attempts) + random.randint(1, 10)
                 next_retry = datetime.now(timezone.utc) + timedelta(seconds=backoff_sec)
                 existing_log.status = NotificationStatus.QUEUED.value  # type: ignore
                 existing_log.next_retry_at = next_retry  # type: ignore
@@ -267,15 +264,6 @@ def dispatch_guest_notification(
             else:
                 existing_log.status = NotificationStatus.FAILED.value  # type: ignore
                 db.commit()
-
-                # Automatic email fallback for meta_whatsapp
-                if channel == "meta_whatsapp" and guest.email:
-                    logger.info(f"[NOTIFY] WhatsApp failed for {guest_id} ({res.error}). Falling back to email.")
-                    dispatch_guest_notification.apply_async(
-                        args=[guest_id, "smtp", notification_type, force, raw_token],
-                        countdown=5,
-                    )
-                    return {"status": NotificationStatus.FAILED.value, "error": res.error, "fallback": "smtp"}
 
                 return {"status": NotificationStatus.FAILED.value, "error": res.error}
 
@@ -321,8 +309,21 @@ def run_event_notification_dispatch(
             skipped_zero_photos += 1
             continue
 
-        # Check dedupe
-        prefix, raw_token = _get_or_create_magic_token(db, guest)
+        # Check dedupe. A dry-run must not create or rotate access tokens.
+        if dry_run:
+            active_token = (
+                db.query(GuestAccessToken)
+                .filter(
+                    GuestAccessToken.guest_id == guest.id,
+                    GuestAccessToken.revoked_at.is_(None),
+                    GuestAccessToken.expires_at > datetime.now(timezone.utc),
+                )
+                .first()
+            )
+            prefix = str(active_token.token_prefix) if active_token else "preview"
+            raw_token = None
+        else:
+            prefix, raw_token = _get_or_create_magic_token(db, guest)
         dedupe_key = f"{prefix}_cnt{photo_count}"
 
         existing_log = (
@@ -361,15 +362,22 @@ def run_event_notification_dispatch(
     # Render sample for preview
     sample_guest = next((g for g in guests if visible_matches(db, str(g.id)).count() > 0), guests[0] if guests else None)  # type: ignore
     sample_name = sample_guest.first_name if sample_guest else "Guest"
-    _, sample_token = _get_or_create_magic_token(db, sample_guest) if sample_guest else ("", "sample_token")
     app_url = str(settings.FRONTEND_URL).rstrip("/")
-    sample_link = f"{app_url}/g/{sample_token}"
-    sample_opt_out = f"{app_url}/api/v1/public/opt-out?guest_id={sample_guest.id if sample_guest else 'id'}"
+    sample_link = f"{app_url}/g/<private-link-generated-at-send-time>"
+    sample_photo_count = (
+        visible_matches(db, str(sample_guest.id)).count() if sample_guest else 0  # type: ignore
+    )
+    if sample_guest:
+        from services.opt_out import create_opt_out_token
+        sample_opt_out_token = create_opt_out_token(sample_guest.id)  # type: ignore[arg-type]
+        sample_opt_out = f"{app_url}/api/v1/public/opt-out?token={sample_opt_out_token}"
+    else:
+        sample_opt_out = "#"
 
     sample_subject, sample_text, sample_html = render_email_template(
         guest_name=str(sample_name),
         event_title=str(event.title),
-        photo_count=5,
+        photo_count=sample_photo_count,
         magic_link=sample_link,
         opt_out_link=sample_opt_out,
     )

@@ -36,7 +36,7 @@ export default function DriveImporter({ eventId }: { eventId: string }) {
     e.preventDefault();
     setError("");
     setSuccess("");
-    
+
     if (!driveUrl.includes("/folders/")) {
       setError("Please provide a valid Google Drive folder link containing '/folders/'");
       return;
@@ -49,12 +49,12 @@ export default function DriveImporter({ eventId }: { eventId: string }) {
       });
       setSuccess("Background import started successfully! Check the progress below.");
       setDriveUrl("");
-      
+
       // Start polling locally for the DriveImporter component
       if (res.data.batch_id) {
         const initialBatch = await getUploadBatch(res.data.batch_id);
         setBatch(initialBatch);
-        
+
         // Register the task with the global TaskContext
         addTask({
           id: res.data.batch_id,
@@ -64,7 +64,19 @@ export default function DriveImporter({ eventId }: { eventId: string }) {
         });
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to start Google Drive import");
+      const detail = err.response?.data?.detail;
+      let errorMessage = "Failed to start Google Drive import";
+      if (typeof detail === 'string') {
+        errorMessage = detail;
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        errorMessage = detail.map((d: any) => (d.msg ? d.msg : JSON.stringify(d))).join(', ');
+      } else if (typeof detail === "object" && detail !== null) {
+        errorMessage = detail.msg || JSON.stringify(detail);
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      setError(errorMessage);
       setIsImporting(false);
     }
   };
@@ -74,7 +86,7 @@ export default function DriveImporter({ eventId }: { eventId: string }) {
   const hasTotal = batch && batch.total_files && batch.total_files > 0;
   const overallProgress = hasTotal ? Math.round((batch.received_files / batch.total_files) * 100) : 0;
   const aiProgress = batch && batch.received_files > 0 ? Math.round((completedBatchFiles / batch.received_files) * 100) : 0;
-  
+
   const isDownloading = Boolean(batch && batch.status !== "completed" && (!hasTotal || batch.received_files < batch.total_files));
   const isAiProcessing = Boolean(batch && batch.status !== "completed" && hasTotal && batch.received_files === batch.total_files);
   const isCompleted = Boolean(batch && batch.status === "completed");
@@ -107,7 +119,7 @@ export default function DriveImporter({ eventId }: { eventId: string }) {
             disabled={isDownloading || isAiProcessing}
           />
         </div>
-        
+
         {batch ? (
           <div className="mb-0 w-full md:w-auto relative">
             <button
@@ -115,7 +127,7 @@ export default function DriveImporter({ eventId }: { eventId: string }) {
               className={`px-4 py-2.5 h-[46px] ${isCompleted ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : 'bg-indigo-600 border border-indigo-500/50'} text-white rounded-xl text-sm font-medium transition min-w-[260px] relative overflow-hidden flex items-center justify-center`}
             >
               {!isCompleted && (
-                <div 
+                <div
                   className={`absolute top-0 left-0 h-full ${isAiProcessing ? 'bg-indigo-400/40' : 'bg-indigo-500'} transition-all duration-500 ease-out`}
                   style={{ width: `${isAiProcessing ? aiProgress : overallProgress}%` }}
                 />
@@ -123,18 +135,18 @@ export default function DriveImporter({ eventId }: { eventId: string }) {
               <span className={`relative z-10 flex justify-center w-full tracking-wide ${isAiProcessing ? 'animate-pulse' : ''}`}>
                 {isCompleted
                   ? "Import Completed ✅"
-                  : isAiProcessing 
-                    ? `AI Analysis: ${aiProgress}%` 
+                  : isAiProcessing
+                    ? `AI Analysis: ${aiProgress}%`
                     : `Downloading: ${overallProgress}%`}
               </span>
             </button>
           </div>
         ) : (
           <div className="w-full md:w-auto">
-             <Button 
+             <Button
                 variant="primary"
-                type="submit" 
-                isLoading={isImporting} 
+                type="submit"
+                isLoading={isImporting}
                 disabled={!driveUrl}
                 className="w-full md:w-auto h-[46px] min-w-[140px]"
               >
@@ -143,7 +155,7 @@ export default function DriveImporter({ eventId }: { eventId: string }) {
           </div>
         )}
       </form>
-      
+
       {batch && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 p-6 mt-8 bg-zinc-900/60 rounded-xl border border-zinc-800/80 shadow-inner backdrop-blur-sm">
           <div>

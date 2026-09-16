@@ -24,7 +24,7 @@ certificatesResolvers:
   le:
     acme:
       email: your-email@example.com
-      storage: acme.json
+      storage: /etc/traefik/acme/acme.json
       # Using Let's Encrypt Staging for first run as specified by Phase 2
       caServer: "https://acme-staging-v02.api.letsencrypt.org/directory"
       httpChallenge:

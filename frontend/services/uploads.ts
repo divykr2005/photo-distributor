@@ -41,18 +41,21 @@ export async function uploadSinglePhoto(
     formData.append("batch_id", batchId);
   }
 
-  const { data } = await api.post<{ photo_id: string; duplicate: boolean }>(
-    `/events/${eventId}/photos`,
-    formData,
-    {
-      headers: { "Content-Type": "multipart/form-data" },
-      onUploadProgress: (progressEvent) => {
-        if (onProgress && progressEvent.total) {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress(percentCompleted);
-        }
-      },
-    }
-  );
+  const csrfToken = document.cookie.split('; ').find(row => row.startsWith('csrf_token='))?.split('=')[1] || '';
+    const { data } = await api.post<{ photo_id: string; duplicate: boolean }>(
+      `/events/${eventId}/photos`,
+      formData,
+      {
+        headers: {
+          'X-CSRF-Token': csrfToken,
+        },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percentCompleted);
+          }
+        },
+      }
+    );
   return data;
 }

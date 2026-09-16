@@ -1,3 +1,6 @@
+from typing import cast
+from uuid import UUID
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -16,9 +19,10 @@ def get_dashboard_stats(
 ):
     event_repo = EventRepository(db)
     guest_repo = GuestRepository(db)
+    user_id = cast(UUID, current_user.id)
     return {
-        "total_events": event_repo.count(current_user.id),
-        "total_guests": guest_repo.count_by_user(current_user.id),
-        "registered_today": guest_repo.count_today_by_user(current_user.id),
+        "total_events": event_repo.count(user_id),
+        "total_guests": guest_repo.count_by_user(user_id),
+        "registered_today": guest_repo.count_today_by_user(user_id),
     }
 

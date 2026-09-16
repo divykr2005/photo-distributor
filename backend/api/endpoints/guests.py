@@ -12,6 +12,7 @@ from repositories.guest_repository import GuestRepository
 from repositories.face_embedding_repository import FaceEmbeddingRepository
 from schemas.guest import GuestCreate, GuestResponse, GuestUpdate
 from worker.face_processor import FaceQualityError
+from core.config import settings
 
 router = APIRouter()
 
@@ -39,8 +40,27 @@ def create_guest(
     current_user: User = Depends(get_current_user),
 ):
     _verify_event_owner(db, guest_in.event_id, current_user.id)
+    if guest_in.biometric_consent:
+        if guest_in.biometric_consent_text_version != settings.CURRENT_BIOMETRIC_CONSENT_VERSION:
+            raise HTTPException(status_code=400, detail="The biometric consent notice is out of date.")
+        from datetime import datetime, timezone
+        guest_in = guest_in.model_copy(update={"consent_given_at": datetime.now(timezone.utc)})
+
     repo = GuestRepository(db)
     guest = repo.create(guest_in)
+    if guest_in.biometric_consent:
+        from models.consent import BiometricConsent
+        db.add(BiometricConsent(
+            guest_id=guest.id,
+            consent_text_version=settings.CURRENT_BIOMETRIC_CONSENT_VERSION,
+            phone_e164=guest.phone,
+            given_at=guest.consent_given_at,
+            notice_text_snapshot=(
+                "The guest explicitly consented to facial-feature processing for "
+                "event photo matching and delivery."
+            ),
+        ))
+        db.commit()
     from schemas.guest import GuestResponse
     return GuestResponse.model_validate(guest)
 
@@ -79,7 +99,7 @@ def get_guest(
     return GuestResponse.model_validate(guest)
 
 
-@router.put("/{guest_id}", response_model=GuestResponse)
+@router.patch("/{guest_id}", response_model=GuestResponse)
 def update_guest(
     guest_id: UUID,
     guest_in: GuestUpdate,
@@ -92,7 +112,7 @@ def update_guest(
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
     _verify_event_owner(db, guest.event_id, current_user.id)
-    
+
     # Optimistic concurrency check
     if if_match:
         # Strip quotes if provided by client (e.g., '"2024-..."' -> '2024-...')
@@ -141,6 +161,10 @@ def purge_guest_biometrics(
     emb_repo = FaceEmbeddingRepository(db)
     emb_repo.delete_by_guest(guest_id)
 
+    # 1.5. Delete all photo matches
+    from models.match import Match
+    db.query(Match).filter(Match.guest_id == guest_id).delete(synchronize_session=False)
+
     # 2. Delete the raw selfie from storage (best-effort)
     if guest.image_path:
         try:
@@ -151,8 +175,15 @@ def purge_guest_biometrics(
             pass  # Don't fail the request if storage delete fails
         guest.image_path = None  # type: ignore
 
-    # 3. Reset embedding status so the guest shows as un-enrolled
+    # 3. Reset embedding status and delete crypto keys
     guest.embedding_status = "pending"  # type: ignore
+    guest.wrapped_dek = None
+    guest.dek_key_id = None
+
+    # 4. Set purged timestamp
+    from datetime import datetime, timezone
+    guest.biometrics_purged_at = datetime.now(timezone.utc)
+
     db.commit()
 
 
@@ -187,9 +218,21 @@ async def upload_guest_photo(
         raise HTTPException(status_code=404, detail="Guest not found")
     _verify_event_owner(db, guest.event_id, current_user.id)
 
+    from models.consent import BiometricConsent
+    consent = db.query(BiometricConsent).filter(
+        BiometricConsent.guest_id == guest_id,
+        BiometricConsent.withdrawn_at.is_(None),
+        BiometricConsent.consent_text_version == settings.CURRENT_BIOMETRIC_CONSENT_VERSION,
+    ).first()
+    if not consent:
+        raise HTTPException(
+            status_code=409,
+            detail="Current biometric consent is required before uploading a reference photo.",
+        )
+
     from services.storage import get_storage_backend
     storage = get_storage_backend()
-    
+
     ext = (
         file.filename.rsplit(".", 1)[-1]
         if file.filename and "." in file.filename
@@ -197,7 +240,7 @@ async def upload_guest_photo(
     )
     filename = f"{uuid.uuid4()}.{ext}"
     storage_key = f"uploads/guests/{filename}"
-    
+
     # Upload file to storage
     storage.put(storage_key, contents)
 

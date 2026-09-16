@@ -11,6 +11,27 @@ from services.notifier.base import NotificationProvider, NotificationResult
 logger = logging.getLogger(__name__)
 
 
+class ConsoleNotifier:
+    """Development-only notifier that exercises delivery without external I/O."""
+
+    def send(
+        self,
+        recipient: str,
+        subject: str,
+        body_text: str,
+        body_html: Optional[str] = None,
+        extra_data: Optional[dict] = None,
+    ) -> NotificationResult:
+        # Deliberately avoid logging message bodies because they contain private
+        # guest portal and opt-out tokens.
+        logger.info("[CONSOLE NOTIFIER] simulated delivery to %s: %s", recipient, subject)
+        return NotificationResult(
+            success=True,
+            provider="console",
+            provider_message_id=f"console_{uuid.uuid4().hex[:12]}",
+        )
+
+
 class SmtpNotifier:
     """SMTP email notifier. Reads credentials from settings (typed, validated at startup)."""
 
@@ -82,16 +103,15 @@ class SmtpNotifier:
 def get_notifier(channel: str) -> NotificationProvider:
     """Factory: return the provider for the given channel name.
 
-    Accepted values: 'smtp', 'meta_whatsapp'.
+    Accepted values: 'smtp', plus 'console' in local development.
     Raises ValueError for unknown channels — no silent console fallback in production.
     """
     ch = channel.lower()
     if ch == "smtp":
         return SmtpNotifier()
-    if ch == "meta_whatsapp":
-        from services.notifier.whatsapp import MetaWhatsAppProvider
-        return MetaWhatsAppProvider()
+    if ch == "console" and settings.ENVIRONMENT == "dev":
+        return ConsoleNotifier()
     raise ValueError(
         f"Unknown notification channel: {ch!r}. "
-        "Accepted values: 'smtp', 'meta_whatsapp'."
+        "Accepted values: 'smtp' (and 'console' in development)."
     )

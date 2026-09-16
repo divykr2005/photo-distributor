@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -9,7 +10,6 @@ from models.user import User
 from models.photo import Photo
 from models.photo_face import PhotoFace
 from models.match import Match
-from models.match_run import MatchRun
 from schemas.match_run import MatchRunCreate, MatchRunResponse
 from workers.matching import run_event_match
 
@@ -102,13 +102,20 @@ def trigger_match_run(
 
     task = run_event_match.delay(str(event_id), force=req.force, trigger="manual_rerun")
 
-    # Create dummy initial MatchRun representation for response
-    match_run = MatchRun(
+    # Return an explicit queued/running snapshot. The durable MatchRun row is
+    # created by the worker once it starts processing.
+    return MatchRunResponse(
         id=UUID(int=0),
         event_id=event_id,
         trigger="manual_rerun",
         scope="full_event" if req.force else "new_photos",
         params={"force": req.force, "task_id": task.id},
+        faces_scanned=0,
+        guests_scanned=0,
+        auto_confirmed=0,
+        sent_to_review=0,
+        rejected=0,
+        protected_rows=0,
         status="running",
+        started_at=datetime.now(timezone.utc),
     )
-    return match_run

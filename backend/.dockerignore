@@ -5,3 +5,7 @@ __pycache__/
 .env
 uploads/
 .git/
+# buffalo_l.zip is intentionally NOT excluded here:
+# Dockerfile.dev COPYs it from the build context to avoid a GitHub download.
+# The production Dockerfile downloads it at build time via wget and never
+# references this file, so including it has zero effect on prod image size.

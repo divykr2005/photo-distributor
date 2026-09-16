@@ -152,7 +152,8 @@ def test_zip_request_worker_and_download(db_session: Session, tmp_path, monkeypa
     res_poll = client.get(f"/api/v1/public/guest/{token}/zip/{job_id}")
     assert res_poll.status_code == 200
     data_poll = res_poll.json()
-    assert data_poll["status"] == "completed"
+    print(f"data_poll: {data_poll}")
+    assert data_poll["status"] == "completed", data_poll.get("error_message")
     assert data_poll["photo_count"] == 3
     assert data_poll["download_url"] is not None
 

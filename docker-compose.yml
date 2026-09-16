@@ -1,5 +1,5 @@
 x-base: &base
-  image: photo-distr-backend:latest
+  image: photo-distr-v2-backend:latest
   build:
     context: ./backend
     dockerfile: Dockerfile
@@ -25,7 +25,7 @@ services:
   # One-shot migrations; everything else waits for a clean exit.
   migrate:
     <<: *base
-    container_name: photo_distr_migrate
+    container_name: photo_distr_v2_migrate
     restart: "no"
     environment: *base-env
     command: alembic upgrade head
@@ -34,11 +34,15 @@ services:
 
   backend:
     <<: *base
-    container_name: photo_distr_backend
+    container_name: photo_distr_v2_backend
     depends_on:
       migrate:
         condition: service_completed_successfully
     environment: *base-env
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - app_uploads:/app/uploads
     networks:
       - default
       - traefik-public
@@ -51,7 +55,7 @@ services:
       - "traefik.http.services.api.loadbalancer.server.port=8000"
       - "traefik.http.services.api.loadbalancer.healthcheck.path=/healthz"
     command: >
-      uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips='*' --timeout-keep-alive 65 --limit-concurrency 128 --no-access-log
+      uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips='*' --timeout-keep-alive 65 --limit-concurrency 128
     mem_limit: 768m
     memswap_limit: 1024m
     cpu_shares: 1024
@@ -64,16 +68,23 @@ services:
 
   worker-faces:
     <<: *base
-    container_name: photo_distr_worker_faces
+    container_name: photo_distr_v2_worker_faces
     depends_on:
       migrate:
         condition: service_completed_successfully
+      backend:
+        condition: service_healthy
     environment:
       <<: *base-env
       INSIGHTFACE_MODEL: buffalo_l
       INSIGHTFACE_DET_SIZE: "640"
       INSIGHTFACE_HOME: /models
+      # P0 Security: MASTER_KEY_HEX is intentionally ONLY available to worker-faces.
+      # The backend, worker-general, and all other services must NOT have this value.
+      # This key is the root of trust for all biometric embedding encryption.
+      MASTER_KEY_HEX: ${MASTER_KEY_HEX}
     volumes:
+      - app_uploads:/app/uploads
       - insightface_models:/models
     command: >
       celery -A core.celery_app.celery_app worker --loglevel=info --pool=prefork --concurrency=1 --prefetch-multiplier=1 --max-tasks-per-child=100 --max-memory-per-child=1750000 --without-gossip --without-mingle --without-heartbeat -Q faces -n faces@%h
@@ -86,16 +97,19 @@ services:
   # match + zip + beat in a single interpreter, threaded (both are I/O-bound).
   worker-general:
     <<: *base
-    container_name: photo_distr_worker_general
+    container_name: photo_distr_v2_worker_general
     depends_on:
       migrate:
         condition: service_completed_successfully
+      backend:
+        condition: service_healthy
     environment: *base-env
     volumes:
+      - app_uploads:/app/uploads
       - celerybeat:/var/lib/celerybeat
       - zip_staging:/var/tmp/zips # disk, NOT tmpfs
     command: >
-      celery -A core.celery_app.celery_app worker --loglevel=info --pool=threads --concurrency=4 --prefetch-multiplier=1 --without-gossip --without-mingle --without-heartbeat -Q match,celery,maintenance -n io@%h --beat --schedule=/var/lib/celerybeat/schedule
+      celery -A core.celery_app.celery_app worker --loglevel=info --pool=threads --concurrency=4 --prefetch-multiplier=1 --without-gossip --without-mingle --without-heartbeat -Q match,celery,maintenance -n match@%h --beat --schedule=/var/lib/celerybeat/schedule
     mem_limit: 640m
     memswap_limit: 896m
     cpu_shares: 512
@@ -104,7 +118,7 @@ services:
   # docker compose --profile debug up -d flower
   flower:
     <<: *base
-    container_name: photo_distr_flower
+    container_name: photo_distr_v2_flower
     profiles: [ "debug" ]
     environment: *base-env
     command: celery -A core.celery_app.celery_app flower --port=5555
@@ -113,8 +127,8 @@ services:
     mem_limit: 256m
 
   traefik:
-    image: traefik:v2.10
-    container_name: photo_distr_traefik
+    image: traefik:v2.11
+    container_name: photo_distr_v2_traefik
     restart: unless-stopped
     logging:
       driver: json-file
@@ -127,15 +141,59 @@ services:
     networks:
       - traefik-public
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./docker/traefik/acme.json:/acme.json
+      - /var/run/docker.sock:/var/run/docker.sock
+      - acme_data:/etc/traefik/acme
       - ./docker/traefik/traefik.yml:/traefik.yml:ro
       - ./docker/traefik/dynamic.yml:/dynamic.yml:ro
 
+  redis:
+    image: redis:7-alpine
+    container_name: photo_distr_v2_redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    networks:
+      - default
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  docker-prune:
+    image: docker:cli
+    container_name: photo_distr_v2_prune
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Sleep for 7 days (604800 seconds) in a loop and prune system
+    command: /bin/sh -c "while true; do sleep 604800; docker system prune -f; done"
+    mem_limit: 64m
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: photo_distr_v2_frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3000"
+    networks:
+      - default
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8001/api/v1
+      - API_URL=http://backend:8000/api/v1
+    depends_on:
+      - backend
+
 volumes:
+  app_uploads:
   insightface_models:
   celerybeat:
   zip_staging:
+  acme_data:
 
 networks:
   traefik-public:

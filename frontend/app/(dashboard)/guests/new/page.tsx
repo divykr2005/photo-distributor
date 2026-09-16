@@ -41,6 +41,8 @@ export default function NewGuestPage() {
       email: (fd.get("email") as string).trim() || undefined,
       gender: (fd.get("gender") as string) || undefined,
       notes: (fd.get("notes") as string).trim() || undefined,
+      biometric_consent: fd.get("biometric_consent") === "on",
+      biometric_consent_text_version: "v1",
     };
 
     if (!body.event_id) {
@@ -74,11 +76,17 @@ export default function NewGuestPage() {
 
       router.push("/guests");
     } catch (err: unknown) {
-      const msg =
-        err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { detail?: string } } }).response
-              ?.data?.detail
-          : undefined;
+      let msg: string | undefined = undefined;
+      if (err && typeof err === "object" && "response" in err) {
+        const detail = (err as any).response?.data?.detail;
+        if (typeof detail === "string") {
+          msg = detail;
+        } else if (Array.isArray(detail) && detail.length > 0) {
+          msg = detail.map((d: any) => d.msg || "Unknown error").join(", ");
+        } else if ((err as any).message) {
+          msg = (err as any).message;
+        }
+      }
       setError(msg || "Failed to register guest");
     } finally {
       setSaving(false);
@@ -190,6 +198,19 @@ export default function NewGuestPage() {
 
           {/* Camera / Upload */}
           <CameraCapture onCapture={setPhotoFile} />
+
+          <label className="flex items-start gap-3 rounded-xl border border-slate-700 bg-slate-800/40 p-4 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              name="biometric_consent"
+              required
+              className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-900 text-violet-500"
+            />
+            <span>
+              I confirm that this guest explicitly consented to facial-feature processing
+              for matching and delivering their event photos.
+            </span>
+          </label>
 
           {/* Submit */}
           <div className="flex gap-3 pt-2">

@@ -16,6 +16,15 @@ class EventStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
+class UploadMode(str, enum.Enum):
+    # Only allow biometric extraction when the organizer has confirmed that
+    # every subject in every uploaded image has given prior explicit consent.
+    CONTROLLED = "controlled"
+    # Default. Organizer-uploaded photos contain unknown bystanders.
+    # Biometric extraction is BLOCKED; only non-biometric workflows run.
+    OPEN = "open"
+
+
 class Event(Base):
     __tablename__ = "events"
 
@@ -56,5 +65,18 @@ class Event(Base):
     selfie_search_enabled = Column(Boolean, nullable=False, default=False)
     timezone = Column(String(64), nullable=False, default="UTC")
     selfie_threshold = Column(Float, nullable=True)  # per-event override (D23)
+    # Controls whether biometric face extraction is allowed for uploaded photos.
+    # Defaults to 'open' (blocked). Must be explicitly set to 'controlled' by
+    # the organizer after confirming all subjects have given prior consent.
+    upload_mode = Column(
+        Enum(UploadMode, values_callable=lambda obj: [e.value for e in obj]),
+        default=UploadMode.OPEN,
+        nullable=False,
+    )
+    # P1: Organizer must confirm that no children under 16 are subjects in this
+    # event's photos before biometric extraction is enabled.
+    # COPPA (US) / UK-GDPR / GDPR Art.8 all require special handling for under-16s.
+    # Default False means extraction is blocked until explicitly confirmed.
+    min_age_confirmed = Column(Boolean, nullable=False, default=False)
 
     creator = relationship("User", backref=backref("events", cascade="all, delete-orphan"))

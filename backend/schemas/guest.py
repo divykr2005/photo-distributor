@@ -14,9 +14,11 @@ class GuestCreate(BaseModel):
     email: str | None = None
     gender: str | None = None
     notes: str | None = None
-    whatsapp_consent_at: datetime | None = None
     consent_source: str | None = None
     consent_text_version: str | None = None
+    consent_given_at: datetime | None = None
+    biometric_consent_text_version: str | None = None
+    biometric_consent: bool = False
 
 
 class GuestUpdate(BaseModel):
@@ -24,12 +26,6 @@ class GuestUpdate(BaseModel):
     first_name: str | None = Field(None, min_length=1, max_length=100)
     last_name: str | None = Field(None, min_length=1, max_length=100)
     phone: str | None = Field(None, min_length=7, max_length=20)
-    email: str | None = None
-    gender: str | None = None
-    notes: str | None = None
-    whatsapp_consent_at: datetime | None = None
-    consent_source: str | None = None
-    consent_text_version: str | None = None
 
 
 class GuestResponse(BaseModel):
@@ -44,12 +40,13 @@ class GuestResponse(BaseModel):
     image_path: str | None
     embedding_status: EmbeddingStatus
     consent_given_at: datetime | None
-    whatsapp_consent_at: datetime | None
     consent_source: str | None
     consent_text_version: str | None
     created_at: datetime
     updated_at: datetime
     expires_at: datetime
 
-    class Config:
-        from_attributes = True
+    biometric_consent_text_version: str | None = None
+    biometrics_purged_at: datetime | None = None
+    # Pydantic v2 configuration
+    model_config = ConfigDict(from_attributes=True)

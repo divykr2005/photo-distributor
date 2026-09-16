@@ -60,18 +60,22 @@ async def receive_whatsapp_webhook(request: Request):
     raw_body = await request.body()
 
     # --- HMAC signature verification ---
-    app_secret = settings.META_WHATSAPP_TOKEN  # App Secret (not the page token)
+    app_secret = settings.META_WHATSAPP_APP_SECRET
     sig_header = request.headers.get("X-Hub-Signature-256", "")
-    if app_secret and sig_header:
+    if app_secret:
+        if not sig_header:
+            raise HTTPException(status_code=401, detail="Signature missing")
         expected = "sha256=" + hmac.new(
             app_secret.encode(), raw_body, hashlib.sha256
         ).hexdigest()
         if not hmac.compare_digest(sig_header, expected):
             logger.warning("[WA WEBHOOK] HMAC mismatch — ignoring payload")
             raise HTTPException(status_code=401, detail="Signature mismatch")
-    elif not app_secret:
-        # App secret not configured — log but don't block (allows local dev)
-        logger.warning("[WA WEBHOOK] META_WHATSAPP_TOKEN not set; skipping HMAC check")
+    elif settings.ENVIRONMENT != "dev":
+        logger.error("[WA WEBHOOK] META_WHATSAPP_APP_SECRET is not configured")
+        raise HTTPException(status_code=503, detail="Webhook verification is not configured")
+    else:
+        logger.warning("[WA WEBHOOK] Development mode: signature verification skipped")
 
     # --- Parse payload ---
     try:

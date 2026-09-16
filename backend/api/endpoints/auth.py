@@ -16,7 +16,7 @@ from core.config import settings
 router = APIRouter()
 
 def set_auth_cookies(response: Response, token_pair: dict):
-    domain = settings.COOKIE_DOMAIN
+    domain = settings.COOKIE_DOMAIN if settings.ENVIRONMENT != "dev" else None
     secure = settings.ENVIRONMENT != "dev"
     
     response.set_cookie(
@@ -51,7 +51,7 @@ def set_auth_cookies(response: Response, token_pair: dict):
     )
 
 def clear_auth_cookies(response: Response):
-    domain = settings.COOKIE_DOMAIN
+    domain = settings.COOKIE_DOMAIN if settings.ENVIRONMENT != "dev" else None
     response.delete_cookie("access_token", domain=domain)
     response.delete_cookie("refresh_token", domain=domain)
     response.delete_cookie("csrf_token", domain=domain)

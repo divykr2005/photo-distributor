@@ -1,7 +1,8 @@
 import React from "react";
-import BulkUploader from "@/components/uploader/BulkUploader";
-import DriveImporter from "@/components/uploader/DriveImporter";
+import dynamic from "next/dynamic";
 
+const BulkUploader = dynamic(() => import("@/components/uploader/BulkUploader"), { ssr: false });
+const DriveImporter = dynamic(() => import("@/components/uploader/DriveImporter"), { ssr: false });
 export default function EventUploadPage({ params }: { params: { eventId: string } }) {
   const { eventId } = params;
 

@@ -15,11 +15,27 @@ from models.notification_log import NotificationLog, NotificationStatus
 from models.photo import Photo
 from models.photo_face import PhotoFace
 from models.user import User
+from services.notifier import get_notifier, render_email_template
+from services.opt_out import create_opt_out_token
 from workers.notifications import is_in_quiet_hours, run_event_notification_dispatch
+from unittest.mock import patch, MagicMock
 
 # Enable eager execution for Celery tasks in unit tests
 celery_app.conf.task_always_eager = True
 celery_app.conf.task_eager_propagates = True
+
+@pytest.fixture(autouse=True)
+def mock_notifier():
+    with patch("api.endpoints.notifications.get_notifier") as mock_api_notifier, \
+         patch("workers.notifications.get_notifier") as mock_worker_notifier:
+
+        mock_instance = MagicMock()
+        mock_instance.send.return_value = MagicMock(
+            success=True, provider="mock", provider_message_id="mock_id", is_transient=False
+        )
+        mock_api_notifier.return_value = mock_instance
+        mock_worker_notifier.return_value = mock_instance
+        yield mock_instance
 
 
 def setup_notification_fixtures(db: Session):
@@ -125,7 +141,7 @@ def test_quiet_hours_calculation():
 def test_notification_dry_run(db_session: Session):
     """Verify dry-run calculates correct recipient counts without dispatching."""
     fx = setup_notification_fixtures(db_session)
-    res = run_event_notification_dispatch(db_session, str(fx["event"].id), channel="console", dry_run=True)
+    res = run_event_notification_dispatch(db_session, str(fx["event"].id), channel="meta_whatsapp", dry_run=True)
 
     assert res["total_guests"] == 4
     assert res["eligible_recipients"] == 2  # Guest 1 & Guest 2
@@ -141,7 +157,7 @@ def test_notification_dispatch_and_idempotency(db_session: Session):
     event_id = str(fx["event"].id)
 
     # 1. Run actual dispatch synchronously
-    res1 = run_event_notification_dispatch(db_session, event_id, channel="console", dry_run=False)
+    res1 = run_event_notification_dispatch(db_session, event_id, channel="smtp", dry_run=False)
     assert res1["eligible_recipients"] == 2
 
     # Verify log records created for Guest 1 & Guest 2
@@ -149,10 +165,10 @@ def test_notification_dispatch_and_idempotency(db_session: Session):
     assert len(logs) == 2
     for l in logs:
         assert l.status == NotificationStatus.SENT.value
-        assert l.channel == "console"
+        assert l.channel == "smtp"
 
     # 2. Re-run dispatch -> Should skip 100% of eligible guests as duplicates
-    res2 = run_event_notification_dispatch(db_session, event_id, channel="console", dry_run=False)
+    res2 = run_event_notification_dispatch(db_session, event_id, channel="smtp", dry_run=False)
     assert res2["eligible_recipients"] == 0
     assert res2["skipped_duplicate"] == 2
 
@@ -160,15 +176,32 @@ def test_notification_dispatch_and_idempotency(db_session: Session):
 def test_public_opt_out_endpoint(client: TestClient, db_session: Session):
     """Verify public opt-out endpoint sets notify_opt_out_at timestamp."""
     fx = setup_notification_fixtures(db_session)
-    guest_id = str(fx["guest1"].id)
+    token = create_opt_out_token(fx["guest1"].id)
 
-    resp = client.get(f"/api/v1/public/opt-out?guest_id={guest_id}")
+    preview = client.get(f"/api/v1/public/opt-out?token={token}")
+    assert preview.status_code == 200
+    assert "Confirm opt-out" in preview.text
+
+    db_session.refresh(fx["guest1"])
+    assert fx["guest1"].notify_opt_out_at is None
+
+    resp = client.post("/api/v1/public/opt-out", data={"token": token})
     assert resp.status_code == 200
     assert "Unsubscribed" in resp.text
 
     # Verify database record
     db_session.refresh(fx["guest1"])
     assert fx["guest1"].notify_opt_out_at is not None
+
+
+def test_public_opt_out_rejects_unsigned_guest_id(client: TestClient, db_session: Session):
+    """A guest UUID alone must not authorize a state-changing opt-out."""
+    fx = setup_notification_fixtures(db_session)
+    resp = client.get(f"/api/v1/public/opt-out?guest_id={fx['guest1'].id}")
+    assert resp.status_code == 422
+
+    db_session.refresh(fx["guest1"])
+    assert fx["guest1"].notify_opt_out_at is None
 
 
 def test_api_notification_endpoints(client: TestClient, db_session: Session):
@@ -179,10 +212,12 @@ def test_api_notification_endpoints(client: TestClient, db_session: Session):
     # Get JWT auth token for organizer
     from core.security import create_access_token
     token = create_access_token(data={"sub": str(fx["user"].id)})
-    headers = {"Authorization": f"Bearer {token}"}
+    client.cookies.set("access_token", token)
+    client.cookies.set("csrf_token", "test-csrf")
+    headers = {"x-csrf-token": "test-csrf"}
 
     # 1. Preview endpoint
-    r_prev = client.get(f"/api/v1/events/{event_id}/notifications/preview?channel=console", headers=headers)
+    r_prev = client.get(f"/api/v1/events/{event_id}/notifications/preview?channel=smtp", headers=headers)
     assert r_prev.status_code == 200
     p_data = r_prev.json()
     assert p_data["total_guests"] == 4
@@ -192,7 +227,7 @@ def test_api_notification_endpoints(client: TestClient, db_session: Session):
     r_test = client.post(
         f"/api/v1/events/{event_id}/notifications/test",
         headers=headers,
-        json={"channel": "console", "recipient": "organizer@example.com"},
+        json={"channel": "smtp", "recipient": "test@example.com"},
     )
     assert r_test.status_code == 200
     assert r_test.json()["status"] == "success"
@@ -201,7 +236,7 @@ def test_api_notification_endpoints(client: TestClient, db_session: Session):
     r_disp = client.post(
         f"/api/v1/events/{event_id}/notifications/dispatch",
         headers=headers,
-        json={"channel": "console", "dry_run": False},
+        json={"channel": "smtp", "dry_run": False},
     )
     assert r_disp.status_code == 202
 

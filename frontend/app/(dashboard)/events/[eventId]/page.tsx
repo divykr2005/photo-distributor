@@ -6,7 +6,9 @@ import {
   HiOutlineCloudUpload,
   HiOutlinePhotograph,
   HiOutlineUserGroup,
+  HiOutlineSparkles,
   HiOutlineSpeakerphone,
+  HiOutlineDuplicate,
 } from "react-icons/hi";
 import api from "@/lib/api";
 import type { Event } from "@/types";
@@ -56,6 +58,7 @@ export default function EditEventPage() {
       try {
         const { data } = await api.get<Event>(`/events/${eventId}`);
         setEvent(data);
+        setError("");
       } catch {
         setError("Event not found");
       } finally {
@@ -78,6 +81,10 @@ export default function EditEventPage() {
       location: (formData.get("location") as string) || null,
       date: new Date(formData.get("date") as string).toISOString(),
       status: formData.get("status") as string,
+      portal_enabled: formData.get("portal_enabled") === "on",
+      selfie_search_enabled: formData.get("selfie_search_enabled") === "on",
+      upload_mode: formData.get("controlled_upload") === "on" ? "controlled" : "open",
+      min_age_confirmed: formData.get("min_age_confirmed") === "on",
     };
 
     try {
@@ -126,21 +133,21 @@ export default function EditEventPage() {
             Manage event settings, upload photos, and notify guests. The global task tracker will monitor background AI processing.
           </p>
           
-          {pipelineStatus && pipelineStatus.pending > 0 && (
+          {pipelineStatus && (pipelineStatus.photos.pending > 0 || pipelineStatus.photos.processing > 0) && (
             <div className="mt-6 p-5 glass-panel rounded-xl">
               <div className="flex justify-between text-xs font-semibold text-indigo-300 mb-3">
                 <span>AI Processing Pipeline</span>
-                <span>{pipelineStatus.processed} / {pipelineStatus.total} photos</span>
+                <span>{pipelineStatus.photos.processed} processed</span>
               </div>
               <div className="w-full bg-zinc-800/50 h-2.5 rounded-full overflow-hidden border border-zinc-700/30">
                 <div 
                   className="bg-indigo-500 h-full transition-all duration-500 ease-out shadow-[0_0_10px_rgba(99,102,241,0.5)]"
-                  style={{ width: `${Math.max(5, (pipelineStatus.processed / (pipelineStatus.total || 1)) * 100)}%` }}
+                  style={{ width: `${Math.max(5, (pipelineStatus.photos.processed / (Object.values(pipelineStatus.photos).reduce((sum: number, value) => sum + Number(value), 0) || 1)) * 100)}%` }}
                 />
               </div>
               <div className="text-[11px] text-zinc-500 mt-3 flex justify-between font-medium">
-                <span>{pipelineStatus.pending} pending</span>
-                {pipelineStatus.failed > 0 && <span className="text-red-400">{pipelineStatus.failed} failed</span>}
+                <span>{pipelineStatus.photos.pending + pipelineStatus.photos.processing} pending</span>
+                {pipelineStatus.photos.failed > 0 && <span className="text-red-400">{pipelineStatus.photos.failed} failed</span>}
               </div>
             </div>
           )}
@@ -232,6 +239,25 @@ export default function EditEventPage() {
                 </div>
               </div>
 
+              <div className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 text-sm text-zinc-300">
+                <label className="flex items-start gap-3">
+                  <input type="checkbox" name="portal_enabled" defaultChecked={event.portal_enabled} className="mt-1" />
+                  <span>Enable the guest photo portal.</span>
+                </label>
+                <label className="flex items-start gap-3">
+                  <input type="checkbox" name="selfie_search_enabled" defaultChecked={event.selfie_search_enabled} className="mt-1" />
+                  <span>Enable public guest registration and selfie search.</span>
+                </label>
+                <label className="flex items-start gap-3">
+                  <input type="checkbox" name="controlled_upload" defaultChecked={event.upload_mode === "controlled"} className="mt-1" />
+                  <span>I confirm every person in uploaded photos has explicitly consented to facial-feature processing.</span>
+                </label>
+                <label className="flex items-start gap-3">
+                  <input type="checkbox" name="min_age_confirmed" defaultChecked={event.min_age_confirmed} className="mt-1" />
+                  <span>I confirm the uploaded photos do not contain subjects under 16.</span>
+                </label>
+              </div>
+
               <div className="flex gap-4 pt-4 border-t border-zinc-800/80">
                 <Button type="submit" isLoading={saving} variant="primary">
                   Save Changes
@@ -273,7 +299,44 @@ export default function EditEventPage() {
             </div>
           </Card>
 
-
+          {process.env.NEXT_PUBLIC_FEATURE_EXPERIMENTAL_AI === 'true' && (
+            <Card title="AI Tools" className="bg-zinc-900/30">
+              <div className="flex flex-col gap-3">
+                <Button
+                  type="button"
+                  variant="glass"
+                  onClick={async () => {
+                    try {
+                      await api.post(`/events/${eventId}/clusters/run`);
+                      setSuccess("Clustering started in background");
+                    } catch {
+                      setError("Failed to start clustering");
+                    }
+                  }}
+                  className="w-full justify-start gap-3"
+                >
+                  <HiOutlineDuplicate className="w-5 h-5 text-zinc-400" />
+                  Group Duplicates
+                </Button>
+                <Button
+                  type="button"
+                  variant="glass"
+                  onClick={async () => {
+                    try {
+                      await api.post(`/events/${eventId}/quality-runs`);
+                      setSuccess("Quality ranking started in background");
+                    } catch {
+                      setError("Failed to start quality ranking");
+                    }
+                  }}
+                  className="w-full justify-start gap-3"
+                >
+                  <HiOutlineSparkles className="w-5 h-5 text-zinc-400" />
+                  Rank Photo Quality
+                </Button>
+              </div>
+            </Card>
+          )}
 
           <Card title="Danger Zone" className="border-red-900/30 bg-red-950/10">
             <div className="flex flex-col gap-3">

@@ -1,0 +1,15 @@
+FROM node:20-alpine
+
+USER root
+WORKDIR /app
+
+# Install dependencies first for better caching
+ENV NODE_ENV=development
+COPY package.json package-lock.json ./
+RUN npm ci --legacy-peer-deps --include=dev
+
+# Copy the rest of the code
+COPY . .
+
+# Run the development server
+CMD ["npm", "run", "dev"]

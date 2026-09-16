@@ -19,6 +19,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # HNSW indexes can take time; build them concurrently outside transaction
     # Ensure pgvector is enabled
     op.execute("CREATE EXTENSION IF NOT EXISTS vector;")
 
@@ -29,8 +30,9 @@ def upgrade() -> None:
 
     # Create HNSW indexes using cosine distance
     # m=16, ef_construction=64 are reasonable defaults for 512d vectors
-    op.execute("CREATE INDEX IF NOT EXISTS photo_faces_embedding_idx ON photo_faces USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);")
-    op.execute("CREATE INDEX IF NOT EXISTS face_embeddings_embedding_idx ON face_embeddings USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);")
+    with op.get_context().autocommit_block():
+        op.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS photo_faces_embedding_idx ON photo_faces USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);")
+        op.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS face_embeddings_embedding_idx ON face_embeddings USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);")
 
 
 def downgrade() -> None:

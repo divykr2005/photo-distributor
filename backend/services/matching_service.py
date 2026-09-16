@@ -1,15 +1,23 @@
 import os
 import uuid
+import json
 import logging
+import typing
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import text, insert, update
 
+import numpy as np
+import faiss
+
 from models.event import Event
 from models.photo_face import PhotoFace
 from models.match import Match
 from models.match_run import MatchRun
+from models.face_embedding import FaceEmbedding
+from models.guest import Guest
+from services.crypto.envelope import get_or_unwrap_kek, get_or_unwrap_dek, decrypt_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +37,20 @@ class MatchingService:
         margin = getattr(event, "match_margin", None) or float(os.getenv("MATCH_MARGIN", DEFAULT_MARGIN))
         return auto_confirm, review_floor, margin
 
+    def _get_event_kek(self, event_id_str: str) -> bytes:
+        event = self.db.query(Event).filter(Event.id == uuid.UUID(event_id_str)).first()
+        if not event or not event.wrapped_kek:
+            raise RuntimeError(f"Event {event_id_str} missing or missing wrapped_kek")
+        kek_blob = typing.cast(bytes, event.wrapped_kek)
+        return get_or_unwrap_kek(event_id_str, kek_blob[12:], kek_blob[:12])
+
+    def _decrypt_face(self, enc_blob: bytes, nonce: bytes, guest_id: str, event_id: str, face_id: str, key: bytes, model_version: str = "buffalo_l") -> list[float]:
+        raw = decrypt_embedding(enc_blob, nonce, key, guest_id, event_id, face_id, model_version)
+        return json.loads(raw.decode("utf-8"))
+
     def match_pending_faces(self, event_id_str: str, force: bool = False, trigger: str = "photo_ingest") -> Dict[str, Any]:
         """
-        Runs Postgres pgvector-based matching for photo faces against guest embeddings.
+        Runs FAISS in-memory matching for photo faces against guest embeddings.
         """
         event_id = uuid.UUID(event_id_str)
         auto_confirm_thresh, review_floor_thresh, margin_thresh = self._get_thresholds(event_id_str)
@@ -53,74 +72,86 @@ class MatchingService:
         self.db.commit()
 
         try:
-            # Query the database to find the top 2 matching guests for each matchable face
-            # using pgvector's cosine distance operator `<=>`.
-            # Note: 1 - cosine_distance = cosine_similarity
-            
-            faces_cond = "" if force else "AND pf.matched_at IS NULL"
-            
-            query = text(f"""
-                WITH guest_embeddings AS (
-                    SELECT fe.guest_id, fe.embedding
-                    FROM face_embeddings fe
-                    JOIN guests g ON g.id = fe.guest_id
-                    WHERE g.event_id = :event_id
-                ),
-                top_k_matches AS (
-                    SELECT 
-                        pf.id AS pf_id,
-                        pf.photo_id,
-                        ge.guest_id,
-                        (1 - (pf.embedding <=> ge.embedding)) AS similarity
-                    FROM photo_faces pf
-                    CROSS JOIN LATERAL (
-                        SELECT guest_id, embedding
-                        FROM guest_embeddings
-                        ORDER BY pf.embedding <=> guest_embeddings.embedding ASC
-                        LIMIT 10
-                    ) ge
-                    WHERE pf.event_id = :event_id AND pf.is_matchable = true {faces_cond}
-                ),
-                ranked_guests AS (
-                    SELECT 
-                        pf_id,
-                        photo_id,
-                        guest_id,
-                        MAX(similarity) as similarity
-                    FROM top_k_matches
-                    GROUP BY pf_id, photo_id, guest_id
-                ),
-                face_matches AS (
-                    SELECT
-                        pf_id,
-                        photo_id,
-                        guest_id,
-                        similarity,
-                        ROW_NUMBER() OVER(PARTITION BY pf_id ORDER BY similarity DESC) as rank
-                    FROM ranked_guests
-                )
-                SELECT 
-                    m1.pf_id, 
-                    m1.photo_id, 
-                    m1.guest_id AS top1_guest_id, 
-                    m1.similarity AS top1_score,
-                    m2.guest_id AS top2_guest_id, 
-                    m2.similarity AS top2_score
-                FROM face_matches m1
-                LEFT JOIN face_matches m2 ON m1.pf_id = m2.pf_id AND m2.rank = 2
-                WHERE m1.rank = 1 AND m1.similarity >= :review_floor;
-            """)
-            
-            rows = self.db.execute(query, {
-                "event_id": event_id_str,
-                "review_floor": review_floor_thresh
-            }).fetchall()
+            # 1. Fetch Event KEK
+            kek = self._get_event_kek(event_id_str)
 
-            if not rows:
+            # 2. Fetch Guests and Decrypt Embeddings
+            guest_records = self.db.query(FaceEmbedding, Guest.wrapped_dek).join(
+                Guest, Guest.id == FaceEmbedding.guest_id
+            ).filter(
+                Guest.event_id == event_id,
+                Guest.wrapped_dek.is_not(None)
+            ).all()
+
+            guest_ids = []
+            guest_vectors = []
+
+            for fe, wrapped_dek in guest_records:
+                if not fe.embedding_enc or not fe.enc_nonce:
+                    continue
+                dek_blob = typing.cast(bytes, wrapped_dek)
+                dek = get_or_unwrap_dek(str(fe.guest_id), dek_blob[12:], dek_blob[:12], kek)
+                vec = self._decrypt_face(
+                    fe.embedding_enc, fe.enc_nonce,
+                    str(fe.guest_id), event_id_str, str(fe.id), dek, fe.model_version
+                )
+                guest_vectors.append(vec)
+                guest_ids.append(fe.guest_id)
+
+            if not guest_vectors:
                 match_run.status = "completed"
                 match_run.finished_at = datetime.now(timezone.utc)
                 self.db.commit()
                 return {"status": "completed", "faces_scanned": 0, "auto_confirmed": 0, "review": 0, "rejected": 0}
+
+            # 3. Build FAISS Index
+            dim = len(guest_vectors[0])
+            np_guest_vectors = np.array(guest_vectors, dtype=np.float32)
+            faiss.normalize_L2(np_guest_vectors)
+            index = faiss.IndexFlatIP(dim)
+            index.add(np_guest_vectors)
+
+            # 4. Fetch Photo Faces
+            pf_query = self.db.query(PhotoFace).filter(
+                PhotoFace.event_id == event_id,
+                PhotoFace.is_matchable == True
+            )
+            if not force:
+                pf_query = pf_query.filter(PhotoFace.matched_at.is_(None))
+
+            photo_faces = pf_query.all()
+
+            if not photo_faces:
+                match_run.status = "completed"
+                match_run.finished_at = datetime.now(timezone.utc)
+                self.db.commit()
+                return {"status": "completed", "faces_scanned": 0, "auto_confirmed": 0, "review": 0, "rejected": 0}
+
+            pf_vectors = []
+            pf_objects = []
+            for pf in photo_faces:
+                if not pf.embedding_enc or not pf.enc_nonce:
+                    continue
+                vec = self._decrypt_face(
+                    pf.embedding_enc, pf.enc_nonce,
+                    str(pf.id), event_id_str, str(pf.id), kek, pf.model_version
+                )
+                pf_vectors.append(vec)
+                pf_objects.append(pf)
+
+            if not pf_vectors:
+                match_run.status = "completed"
+                match_run.finished_at = datetime.now(timezone.utc)
+                self.db.commit()
+                return {"status": "completed", "faces_scanned": len(photo_faces), "auto_confirmed": 0, "review": 0, "rejected": 0}
+
+            # 5. Run FAISS Search
+            np_pf_vectors = np.array(pf_vectors, dtype=np.float32)
+            faiss.normalize_L2(np_pf_vectors)
+
+            # Find top 2 matches for each face
+            k = min(2, len(guest_ids))
+            similarities, indices = index.search(np_pf_vectors, k)
 
             # Pre-fetch existing matches to handle overrides & manual protections
             existing_rows = self.db.execute(
@@ -137,22 +168,29 @@ class MatchingService:
             review_cnt = 0
             rejected_cnt = 0
             protected_cnt = 0
-            scanned_faces = len(rows)
+            scanned_faces = len(pf_objects)
 
             new_match_mappings = []
             update_match_mappings = []
             chunk_processed_uuids = []
 
-            for r in rows:
-                pf_uuid = r.pf_id if isinstance(r.pf_id, uuid.UUID) else uuid.UUID(str(r.pf_id))
-                p_uuid = r.photo_id if isinstance(r.photo_id, uuid.UUID) else uuid.UUID(str(r.photo_id))
-                top1_guest_id = r.top1_guest_id if isinstance(r.top1_guest_id, uuid.UUID) else uuid.UUID(str(r.top1_guest_id))
-                top1_score = float(r.top1_score)
-                if r.top2_guest_id:
-                    top2_guest_id = r.top2_guest_id if isinstance(r.top2_guest_id, uuid.UUID) else uuid.UUID(str(r.top2_guest_id))
+            for i, pf in enumerate(pf_objects):
+                pf_uuid = pf.id
+                p_uuid = pf.photo_id
+
+                top1_score = float(similarities[i][0])
+                top1_guest_id = guest_ids[indices[i][0]]
+
+                if top1_score < review_floor_thresh:
+                    chunk_processed_uuids.append(pf_uuid)
+                    continue
+
+                if k > 1:
+                    top2_score = float(similarities[i][1])
+                    top2_guest_id = guest_ids[indices[i][1]]
                 else:
+                    top2_score = 0.0
                     top2_guest_id = None
-                top2_score = float(r.top2_score) if r.top2_score else 0.0
 
                 margin = top1_score - top2_score
 
@@ -193,7 +231,7 @@ class MatchingService:
                         "margin": round(margin, 4),
                         "review_reason": review_reason,
                         "top_candidates": top_candidates,
-                        "model_version": "buffalo_l",
+                        "model_version": pf.model_version,
                         "matched_at": now_ts,
                         "updated_at": now_ts,
                     })
@@ -216,7 +254,7 @@ class MatchingService:
                         "margin": round(margin, 4),
                         "review_reason": review_reason,
                         "top_candidates": top_candidates,
-                        "model_version": "buffalo_l",
+                        "model_version": pf.model_version,
                         "matched_at": now_ts,
                         "created_at": now_ts,
                         "updated_at": now_ts,
@@ -224,7 +262,7 @@ class MatchingService:
                     existing_matches_map[pf_uuid] = {"id": new_match_id, "status": insert_status, "reviewed_at": None}
 
                 chunk_processed_uuids.append(pf_uuid)
-                
+
                 if decision == "auto_confirmed":
                     auto_confirmed_cnt += 1
                 else:
@@ -250,6 +288,11 @@ class MatchingService:
             match_run.finished_at = now_ts
             self.db.commit()
 
+            # Explicitly delete index and arrays from memory
+            del index
+            del np_guest_vectors
+            del np_pf_vectors
+
             return {
                 "status": "completed",
                 "match_run_id": str(match_run.id),
@@ -270,50 +313,83 @@ class MatchingService:
 
     def match_guest(self, event_id_str: str, guest_id_str: str) -> Dict[str, Any]:
         """
-        Fast pgvector-based single-guest matching against existing photo faces.
+        Fast FAISS in-memory single-guest matching against existing photo faces.
         """
         event_id = uuid.UUID(event_id_str)
         guest_id = uuid.UUID(guest_id_str)
         auto_confirm_thresh, review_floor_thresh, margin_thresh = self._get_thresholds(event_id_str)
 
-        query = text("""
-            WITH guest_refs AS (
-                SELECT embedding FROM face_embeddings WHERE guest_id = :guest_id
-            ),
-            face_matches AS (
-                SELECT 
-                    pf.id AS pf_id,
-                    pf.photo_id,
-                    (1 - (pf.embedding <=> gr.embedding)) AS similarity,
-                    ROW_NUMBER() OVER(PARTITION BY pf.id ORDER BY (pf.embedding <=> gr.embedding) ASC) as rank
-                FROM photo_faces pf
-                CROSS JOIN LATERAL (
-                    SELECT embedding FROM guest_refs
-                    ORDER BY pf.embedding <=> guest_refs.embedding ASC
-                    LIMIT 1
-                ) gr
-                WHERE pf.event_id = :event_id AND pf.is_matchable = true
-            )
-            SELECT pf_id, photo_id, similarity
-            FROM face_matches
-            WHERE rank = 1 AND similarity >= :review_floor;
-        """)
+        # 1. Fetch Event KEK
+        kek = self._get_event_kek(event_id_str)
 
-        rows = self.db.execute(query, {
-            "event_id": event_id_str,
-            "guest_id": guest_id_str,
-            "review_floor": review_floor_thresh
-        }).fetchall()
+        # 2. Fetch Guest and Decrypt
+        guest_record = self.db.query(FaceEmbedding, Guest.wrapped_dek).join(
+            Guest, Guest.id == FaceEmbedding.guest_id
+        ).filter(
+            FaceEmbedding.guest_id == guest_id,
+            Guest.wrapped_dek.is_not(None)
+        ).first()
 
-        if not rows:
+        if not guest_record:
             return {"status": "completed", "matches_evaluated": 0, "updated_matches": 0}
 
+        fe, wrapped_dek = guest_record
+        if not fe.embedding_enc or not fe.enc_nonce:
+            return {"status": "completed", "matches_evaluated": 0, "updated_matches": 0}
+
+        dek_blob = typing.cast(bytes, wrapped_dek)
+        dek = get_or_unwrap_dek(str(fe.guest_id), dek_blob[12:], dek_blob[:12], kek)
+        guest_vec = self._decrypt_face(
+            fe.embedding_enc, fe.enc_nonce,
+            str(fe.guest_id), event_id_str, str(fe.id), dek, fe.model_version
+        )
+
+        # Build index for the single guest
+        np_guest_vectors = np.array([guest_vec], dtype=np.float32)
+        faiss.normalize_L2(np_guest_vectors)
+        index = faiss.IndexFlatIP(len(guest_vec))
+        index.add(np_guest_vectors)
+
+        # 3. Fetch all photo faces
+        pf_query = self.db.query(PhotoFace).filter(
+            PhotoFace.event_id == event_id,
+            PhotoFace.is_matchable == True
+        )
+        photo_faces = pf_query.all()
+        if not photo_faces:
+            return {"status": "completed", "matches_evaluated": 0, "updated_matches": 0}
+
+        pf_vectors = []
+        pf_objects = []
+        for pf in photo_faces:
+            if not pf.embedding_enc or not pf.enc_nonce:
+                continue
+            vec = self._decrypt_face(
+                pf.embedding_enc, pf.enc_nonce,
+                str(pf.id), event_id_str, str(pf.id), kek, pf.model_version
+            )
+            pf_vectors.append(vec)
+            pf_objects.append(pf)
+
+        if not pf_vectors:
+            return {"status": "completed", "matches_evaluated": 0, "updated_matches": 0}
+
+        np_pf_vectors = np.array(pf_vectors, dtype=np.float32)
+        faiss.normalize_L2(np_pf_vectors)
+
+        # Search the guest index with photo vectors. Wait, doing index.search(np_pf_vectors, 1)
+        # gives us the similarity of each photo to the single guest.
+        similarities, indices = index.search(np_pf_vectors, 1)
+
         updated_matches = 0
-        for r in rows:
-            score = float(r.similarity)
-            pf_uuid = r.pf_id if isinstance(r.pf_id, uuid.UUID) else uuid.UUID(str(r.pf_id))
-            p_uuid = r.photo_id if isinstance(r.photo_id, uuid.UUID) else uuid.UUID(str(r.photo_id))
-            
+        for i, pf in enumerate(pf_objects):
+            score = float(similarities[i][0])
+            if score < review_floor_thresh:
+                continue
+
+            pf_uuid = pf.id
+            p_uuid = pf.photo_id
+
             existing_match = self.db.query(Match).filter(Match.photo_face_id == pf_uuid).first()
 
             if existing_match:
@@ -336,7 +412,7 @@ class MatchingService:
                     threshold_used=auto_confirm_thresh,
                     decision=decision,
                     status=insert_status,
-                    model_version="buffalo_l",
+                    model_version=pf.model_version,
                 )
                 self.db.add(match_record)
             else:
@@ -347,4 +423,9 @@ class MatchingService:
             updated_matches += 1
 
         self.db.commit()
-        return {"status": "completed", "matches_evaluated": len(rows), "updated_matches": updated_matches}
+
+        del index
+        del np_guest_vectors
+        del np_pf_vectors
+
+        return {"status": "completed", "matches_evaluated": len(pf_objects), "updated_matches": updated_matches}

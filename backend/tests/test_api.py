@@ -28,13 +28,15 @@ def test_register_and_login(client: TestClient):
     })
     assert login_resp.status_code == 200
     token_data = login_resp.json()
-    assert "access_token" in token_data
+    assert token_data["status"] == "ok"
+    assert "access_token" in client.cookies
 
 def test_events_crud(client: TestClient):
     # Register & Login
     client.post("/api/v1/auth/register", json={"name": "E", "email": "e@ex.com", "password": "p"})
-    token = client.post("/api/v1/auth/login", data={"username": "e@ex.com", "password": "p"}).json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+    client.post("/api/v1/auth/login", data={"username": "e@ex.com", "password": "p"})
+    csrf = client.cookies.get("csrf_token", "")
+    headers = {"x-csrf-token": csrf}
     
     # Create Event
     ev_resp = client.post("/api/v1/events/", json={
@@ -58,8 +60,9 @@ def test_events_crud(client: TestClient):
 def test_guest_registration_and_photo(client: TestClient, tmp_path):
     # Setup
     client.post("/api/v1/auth/register", json={"name": "G", "email": "g@ex.com", "password": "p"})
-    token = client.post("/api/v1/auth/login", data={"username": "g@ex.com", "password": "p"}).json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+    client.post("/api/v1/auth/login", data={"username": "g@ex.com", "password": "p"})
+    csrf = client.cookies.get("csrf_token", "")
+    headers = {"x-csrf-token": csrf}
     
     ev_resp = client.post("/api/v1/events/", json={"title": "Guest Event", "date": "2026-10-01T10:00:00Z"}, headers=headers)
     event_id = ev_resp.json()["id"]
@@ -71,7 +74,7 @@ def test_guest_registration_and_photo(client: TestClient, tmp_path):
         "phone": "1234567890",
         "event_id": event_id
     }, headers=headers)
-    assert guest_resp.status_code == 201
+    assert guest_resp.status_code == 201, f"Failed: {guest_resp.text}"
     guest_id = guest_resp.json()["id"]
     assert guest_resp.json()["embedding_status"] == "pending"
     
@@ -79,10 +82,11 @@ def test_guest_registration_and_photo(client: TestClient, tmp_path):
     test_img_path = tmp_path / "test.jpg"
     test_img_path.write_bytes(b"dummy image data")
     
-    # Mock FaceProcessor to bypass actual DeepFace/OpenCV logic
-    with patch("worker.face_processor.FaceProcessor.process_image") as mock_process:
-        # 512-dim embedding dummy
-        mock_process.return_value = ([0.1] * 512, 0.99)
+    # Mock FaceEngine to bypass insightface import and actual logic
+    with patch("services.face_engine.FaceEngine.get_instance") as mock_get_instance:
+        mock_engine = mock_get_instance.return_value
+        # 512-dim embedding dummy, quality score 0.99
+        mock_engine.process_guest_image.return_value = ([0.1] * 512, 0.99)
         
         with open(test_img_path, "rb") as f:
             photo_resp = client.post(f"/api/v1/guests/{guest_id}/photo", files={"file": ("test.jpg", f, "image/jpeg")}, headers=headers)

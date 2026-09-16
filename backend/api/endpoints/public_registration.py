@@ -7,8 +7,12 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from pydantic import EmailStr
 
-from api.dependencies import get_db
+from datetime import datetime, timezone
+
+from api.dependencies import get_db, verify_firebase_token_dep
 from models.event import Event
+from models.consent import BiometricConsent
+from core.config import settings
 from repositories.guest_repository import GuestRepository
 from schemas.guest import GuestCreate
 from worker.face_processor import FaceQualityError
@@ -35,6 +39,7 @@ def get_public_event_details(
         "id": str(event.id),
         "title": str(event.title),
         "date": cast(Any, event.date),
+        "biometric_consent_text_version": settings.CURRENT_BIOMETRIC_CONSENT_VERSION,
     }
 
 
@@ -46,17 +51,24 @@ async def public_guest_register(
     phone: str = Form(...),
     email: str | None = Form(None),
     gender: str | None = Form(None),
-    whatsapp_consent: bool = Form(False),
-    whatsapp_consent_text_version: str | None = Form(None),
+    biometric_consent: bool = Form(False),
+    biometric_consent_text_version: str | None = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    firebase_token: dict = Depends(verify_firebase_token_dep),
 ):
     """
     Public endpoint for a guest to register themselves with a selfie.
+    Requires a valid Firebase ID token proving phone number ownership.
     """
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+
+    if not biometric_consent:
+        raise HTTPException(status_code=400, detail="Biometric processing consent is required to register.")
+    if biometric_consent_text_version != settings.CURRENT_BIOMETRIC_CONSENT_VERSION:
+        raise HTTPException(status_code=400, detail="The biometric consent notice is out of date. Please reload and try again.")
 
     # File validation
     if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
@@ -78,13 +90,13 @@ async def public_guest_register(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid phone number format: {str(e)}")
 
+    verified_phone = firebase_token.get("phone_number")
+    if not verified_phone or verified_phone != formatted_phone:
+        raise HTTPException(status_code=403, detail="Verified phone number does not match registration phone number.")
+
     # Create the guest record
     repo = GuestRepository(db)
     
-    from datetime import datetime, timezone
-    consent_at = datetime.now(timezone.utc) if whatsapp_consent else None
-    consent_source = "registration_form" if whatsapp_consent else None
-
     guest_in = GuestCreate(
         event_id=event_id,
         first_name=first_name,
@@ -92,11 +104,25 @@ async def public_guest_register(
         phone=formatted_phone,
         email=email,
         gender=gender,
-        whatsapp_consent_at=consent_at,
-        consent_source=consent_source,
-        consent_text_version=whatsapp_consent_text_version if whatsapp_consent else None,
+        consent_source=None,
+        consent_text_version=None,
+        consent_given_at=datetime.now(timezone.utc) if biometric_consent else None,
+        biometric_consent_text_version=biometric_consent_text_version if biometric_consent else None,
     )
     guest = repo.create(guest_in)
+
+    consent = BiometricConsent(
+        guest_id=guest.id,
+        consent_text_version=settings.CURRENT_BIOMETRIC_CONSENT_VERSION,
+        phone_e164=formatted_phone,
+        given_at=guest.consent_given_at,
+        notice_text_snapshot=(
+            "I consent to temporary facial-feature processing to find and deliver "
+            "my event photos, subject to the published retention policy."
+        ),
+    )
+    db.add(consent)
+    db.commit()
 
     ext = (
         file.filename.rsplit(".", 1)[-1]
@@ -114,9 +140,21 @@ async def public_guest_register(
     
     guest = repo.update_image(guest, storage_key)
 
-    # Asynchronously extract embedding via Celery
+    # Enqueue only after the consent evidence is committed so the worker cannot
+    # race the transaction and incorrectly reject a valid registration.
     from worker.tasks import process_guest_registration_photo_task
     process_guest_registration_photo_task.delay(str(guest.id), storage_key)
+
+    # Log biometric consent audit
+    from models.audit_log import AuditLog
+    audit = AuditLog(
+        guest_id=guest.id,
+        event_id=event.id,
+        action="biometric_consent_granted_via_registration",
+        timestamp=datetime.now(timezone.utc)
+    )
+    db.add(audit)
+    db.commit()
 
     db.refresh(guest)
     

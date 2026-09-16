@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from models.event import EventStatus
+from models.event import EventStatus, UploadMode
 
 
 class EventCreate(BaseModel):
@@ -17,6 +17,8 @@ class EventCreate(BaseModel):
     selfie_search_enabled: bool = False
     timezone: str = "UTC"
     selfie_threshold: Optional[float] = None
+    upload_mode: UploadMode = UploadMode.OPEN
+    min_age_confirmed: bool = False
 
 
 class EventUpdate(BaseModel):
@@ -30,6 +32,8 @@ class EventUpdate(BaseModel):
     selfie_search_enabled: Optional[bool] = None
     timezone: Optional[str] = None
     selfie_threshold: Optional[float] = None
+    upload_mode: Optional[UploadMode] = None
+    min_age_confirmed: Optional[bool] = None
 
 
 class EventResponse(BaseModel):
@@ -44,6 +48,8 @@ class EventResponse(BaseModel):
     selfie_search_enabled: bool = False
     timezone: str = "UTC"
     selfie_threshold: Optional[float] = None
+    upload_mode: UploadMode = UploadMode.OPEN
+    min_age_confirmed: bool = False
     created_by: UUID
     created_at: datetime
     updated_at: datetime

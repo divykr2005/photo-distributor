@@ -1,0 +1,147 @@
+# ============================================================
+# LOCAL DEVELOPMENT OVERRIDE
+# ============================================================
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#
+# What this file does vs the base docker-compose.yml:
+#   + Adds a local pgvector Postgres container
+#   + Overrides DATABASE_URL, FRONTEND_URL, API_BASE_URL for localhost
+#   + Sets ENVIRONMENT=dev (disables prod guards, relaxes MASTER_KEY_HEX)
+#   + Clears COOKIE_DOMAIN so cookies work on localhost
+#   + Uses Dockerfile.dev (local buffalo_l.zip — no GitHub download)
+#   + Runs the frontend in hot-reload dev mode (volume-mounted source)
+#   + Disables traefik via the "disabled" profile
+# ============================================================
+
+x-dev-db-url: &dev-db-url
+  DATABASE_URL: "postgresql+psycopg://postgres:postgres@db:5432/eventphotos"
+
+x-dev-env: &dev-env
+  DATABASE_URL: "postgresql+psycopg://postgres:postgres@db:5432/eventphotos"
+  ENVIRONMENT: "dev"
+  NODE_ENV: "development"
+  FRONTEND_URL: "http://localhost:3000"
+  API_BASE_URL: "http://localhost:8000"
+  COOKIE_DOMAIN: ""
+  REDIS_URL: "redis://redis:6379/0"
+
+services:
+  # ── Local Postgres with pgvector ────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: photo_distr_v2_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: eventphotos
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d eventphotos"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - default
+
+  # ── Migrations (wait for local db) ─────────────────────────
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *dev-env
+
+  # ── API backend ─────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *dev-env
+    labels: []  # strip all traefik labels
+
+  # ── Face-embedding Celery worker ─────────────────────────────
+  worker-faces:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *dev-env
+      # In dev we use the model baked into the image (/root/.insightface)
+      # rather than the empty named volume, so unset INSIGHTFACE_HOME.
+      INSIGHTFACE_HOME: ""
+      INSIGHTFACE_MODEL: buffalo_l
+      INSIGHTFACE_DET_SIZE: "640"
+      # Zero key is fine in dev (guard only fires when ENVIRONMENT=prod)
+      MASTER_KEY_HEX: "0000000000000000000000000000000000000000000000000000000000000000"
+
+  # ── General Celery worker (match / zip / beat) ───────────────
+  worker-general:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *dev-env
+
+  # ── Frontend (hot-reload dev server) ─────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: photo_distr_v2_frontend
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:8000/api/v1"
+      NEXT_PUBLIC_FEATURE_EXPERIMENTAL_AI: "false"
+    networks:
+      - default
+    depends_on:
+      - backend
+
+  # ── Traefik disabled in local dev ────────────────────────────
+  traefik:
+    profiles:
+      - disabled
+
+  # ── docker-prune not needed locally ─────────────────────────
+  docker-prune:
+    profiles:
+      - disabled
+
+volumes:
+  pgdata:
+  frontend_node_modules:

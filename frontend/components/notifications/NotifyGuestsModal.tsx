@@ -221,10 +221,10 @@ export default function NotifyGuestsModal({
                 <label className="block text-sm font-semibold text-slate-200 mb-2">
                   Select Notification Channel
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {[
                     { id: "smtp", label: "Email", desc: "SMTP Magic Link" },
-                    { id: "twilio_whatsapp", label: "WhatsApp", desc: "Twilio WA" },
+                    { id: "meta_whatsapp", label: "WhatsApp", desc: "Meta WA" },
                   ].map((ch) => (
                     <button
                       key={ch.id}

@@ -7,11 +7,17 @@ from core.config import settings
 
 class LocalStorage(StorageBackend):
     def __init__(self, root_dir: Optional[str] = None):
-        self.root_dir = root_dir or getattr(settings, "STORAGE_ROOT", None) or os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        self.root_dir = root_dir or settings.STORAGE_ROOT or os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads"
+        )
         os.makedirs(self.root_dir, exist_ok=True)
 
     def _get_full_path(self, key: str) -> str:
-        # Sanitize key and prevent path traversal
+        # All keys live on the shared uploads volume, including events/*.
+        # Preserve the location of legacy uploads/guests/* keys.
+        key = key.replace("\\", "/")
+        if key.startswith("uploads/"):
+            key = key[len("uploads/"):]
         clean_key = os.path.normpath(key).lstrip("/\\")
         if clean_key.startswith("..") or ".." in clean_key.split(os.sep):
             raise ValueError(f"Invalid path traversal key: {key}")

@@ -17,8 +17,10 @@ def test_readyz_db_failure(client, monkeypatch):
     from main import app
     
     def override_get_db_fail():
-        raise Exception("DB connection failed")
-        yield
+        class MockDB:
+            def execute(self, *args, **kwargs):
+                raise Exception("DB connection failed")
+        yield MockDB()
         
     app.dependency_overrides[get_db] = override_get_db_fail
     

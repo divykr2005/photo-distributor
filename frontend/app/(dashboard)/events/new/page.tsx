@@ -24,6 +24,10 @@ export default function NewEventPage() {
       description: (formData.get("description") as string) || undefined,
       location: (formData.get("location") as string) || undefined,
       date: new Date(formData.get("date") as string).toISOString(),
+      portal_enabled: formData.get("portal_enabled") === "on",
+      selfie_search_enabled: formData.get("selfie_search_enabled") === "on",
+      upload_mode: formData.get("controlled_upload") === "on" ? "controlled" : "open",
+      min_age_confirmed: formData.get("min_age_confirmed") === "on",
     };
 
     if (!body.title.trim()) {
@@ -41,11 +45,17 @@ export default function NewEventPage() {
       await api.post("/events/", body);
       router.push("/events");
     } catch (err: unknown) {
-      const msg =
-        err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { detail?: string } } }).response
-              ?.data?.detail
-          : undefined;
+      let msg: string | undefined = undefined;
+      if (err && typeof err === "object" && "response" in err) {
+        const detail = (err as any).response?.data?.detail;
+        if (typeof detail === "string") {
+          msg = detail;
+        } else if (Array.isArray(detail) && detail.length > 0) {
+          msg = detail.map((d: any) => d.msg || "Unknown error").join(", ");
+        } else if ((err as any).message) {
+          msg = (err as any).message;
+        }
+      }
       setError(msg || "Failed to create event");
     } finally {
       setLoading(false);
@@ -95,6 +105,25 @@ export default function NewEventPage() {
               required
               className="w-full px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all text-sm"
             />
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-900/40 p-4 text-sm text-slate-300">
+            <label className="flex items-start gap-3">
+              <input type="checkbox" name="portal_enabled" className="mt-1" />
+              <span>Enable the guest photo portal for this event.</span>
+            </label>
+            <label className="flex items-start gap-3">
+              <input type="checkbox" name="selfie_search_enabled" className="mt-1" />
+              <span>Enable public guest registration and selfie search.</span>
+            </label>
+            <label className="flex items-start gap-3">
+              <input type="checkbox" name="controlled_upload" className="mt-1" />
+              <span>I confirm every person in uploaded photos has explicitly consented to facial-feature processing.</span>
+            </label>
+            <label className="flex items-start gap-3">
+              <input type="checkbox" name="min_age_confirmed" className="mt-1" />
+              <span>I confirm the uploaded photos do not contain subjects under 16.</span>
+            </label>
           </div>
 
           <div className="flex gap-3 pt-2">

@@ -3,7 +3,6 @@ import logging
 from datetime import datetime, timezone
 import redis
 from sqlalchemy import text
-from celery.signals import worker_process_init
 
 from core.celery_app import celery_app
 from database.session import SessionLocal
@@ -15,7 +14,6 @@ from core.config import settings
 logger = logging.getLogger(__name__)
 
 
-@worker_process_init.connect
 def prewarm_face_engine(**kwargs):
     """Pre-load InsightFace model at worker startup so first task is fast."""
     try:
@@ -56,6 +54,38 @@ def extract_faces(self, photo_id_str: str) -> dict:
         event_id = result.event_id
         storage_key = result.storage_key
 
+        # ── P0: Group-photo consent gate ─────────────────────────────────
+        # Only extract biometric embeddings when the organiser has confirmed
+        # that every subject in the uploaded photos has given prior consent.
+        from models.event import Event, UploadMode
+        event = db.query(Event).filter(Event.id == event_id).first()
+        # Both conditions must hold: controlled upload mode AND organizer confirmation
+        # that no under-16 subjects are in the event's photos.
+        age_confirmed = getattr(event, "min_age_confirmed", False) or False
+        if not event or event.upload_mode != UploadMode.CONTROLLED or not age_confirmed:
+            block_reason = []
+            if not event:
+                block_reason.append("event not found")
+            elif event.upload_mode != UploadMode.CONTROLLED:
+                block_reason.append(f"upload_mode={getattr(event, 'upload_mode', 'UNKNOWN')}")
+            if event and not age_confirmed:
+                block_reason.append("min_age_confirmed=False")
+            db.execute(
+                text(
+                    "UPDATE photos SET status = 'skipped_no_consent', "
+                    "processing_error = 'Biometric extraction blocked: ' || :reason, "
+                    "updated_at = NOW() WHERE id = :id"
+                ),
+                {"id": photo_id, "reason": ", ".join(block_reason)},
+            )
+            db.commit()
+            logger.info(
+                "Photo %s skipped: %s — biometric extraction blocked.",
+                photo_id_str, ", ".join(block_reason),
+            )
+            return {"status": "skipped_no_consent", "reason": block_reason}
+        # ─────────────────────────────────────────────────────────────────
+
         storage = get_storage_backend()
         raw_bytes = storage.get(storage_key)
         if not raw_bytes:
@@ -87,12 +117,43 @@ def extract_faces(self, photo_id_str: str) -> dict:
         storage.put(web_key, web_bytes)
         storage.put(thumb_key, thumb_bytes)
 
-        # Insert PhotoFaces
+        # Insert PhotoFaces — with encrypted embeddings
         faces_created = 0
+        # Resolve event-level KEK for embedding encryption once per photo.
+        _event_kek: bytes | None = None
+        if event.wrapped_kek:
+            try:
+                from services.crypto.envelope import get_or_unwrap_kek
+                import typing
+                kek_blob = typing.cast(bytes, event.wrapped_kek)
+                _event_kek = get_or_unwrap_kek(str(event_id), kek_blob[12:], kek_blob[:12])
+            except Exception as kek_err:
+                logger.error("Cannot unwrap KEK for event %s: %s", event_id, kek_err)
+                raise RuntimeError(f"KEK unavailable for event {event_id}: {kek_err}") from kek_err
+
         for face_data in detected_faces:
             face_id = uuid.uuid4()
             crop_key = f"events/{event_id}/photos/{photo_id}/faces/{face_id}.jpg"
             storage.put(crop_key, face_data["crop_bytes"])
+
+            # Encrypt embedding before write — plaintext stays NULL.
+            enc_bytes: bytes | None = None
+            enc_nonce: bytes | None = None
+            if _event_kek is not None:
+                try:
+                    import json
+                    from services.crypto.envelope import encrypt_embedding
+                    raw_bytes = json.dumps(face_data["embedding"]).encode("utf-8")
+                    enc_bytes, enc_nonce = encrypt_embedding(
+                        raw_bytes, _event_kek,
+                        guest_id=str(face_id),   # photo_face has no guest; use its own ID as subject
+                        event_id=str(event_id),
+                        face_embedding_id=str(face_id),
+                        model_version="buffalo_l",
+                    )
+                except Exception as enc_err:
+                    logger.error("Embedding encryption failed for face %s: %s", face_id, enc_err)
+                    raise
 
             photo_face = PhotoFace(
                 id=face_id,
@@ -103,7 +164,11 @@ def extract_faces(self, photo_id_str: str) -> dict:
                 bbox_w=face_data["bbox_w"],
                 bbox_h=face_data["bbox_h"],
                 det_score=face_data["det_score"],
-                embedding=face_data["embedding"],
+                embedding=None,           # MUST remain NULL — use embedding_enc
+                embedding_enc=enc_bytes,
+                enc_nonce=enc_nonce,
+                enc_key_id="local" if enc_bytes else None,
+                lawful_basis="controlled_event_consent",
                 model_version="buffalo_l",
                 embedding_dim=512,
                 quality_score=face_data["quality_score"],

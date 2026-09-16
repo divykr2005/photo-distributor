@@ -7,7 +7,6 @@ import tempfile
 import time
 import uuid
 from typing import List, Tuple, Dict, Any, Optional
-import numpy as np
 import redis
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -34,76 +33,7 @@ class SelfieSearchService:
             logger.warning(f"Redis not available for selfie search service: {e}")
             self.redis = None
 
-    def get_event_photo_matrix(self, event_id_str: str) -> Tuple[np.ndarray, List[str], List[str]]:
-        """
-        Loads photo faces matrix for an event.
-        Returns (P_matrix: [N_faces, 512] float32, photo_ids: list of str, face_ids: list of str).
-        Cached in Redis with 10 min TTL.
-        """
-        cache_key = f"event:{event_id_str}:photomatrix"
-        if self.redis:
-            try:
-                cached_data = self.redis.get(cache_key)
-                if cached_data:
-                    data = json.loads(cached_data)
-                    matrix = np.array(data["matrix"], dtype=np.float32)
-                    photo_ids = data["photo_ids"]
-                    face_ids = data["face_ids"]
-                    if matrix.shape[1] == 512 and len(photo_ids) == matrix.shape[0]:
-                        return matrix, photo_ids, face_ids
-            except Exception as e:
-                logger.warning(f"Redis cache read error for photo matrix: {e}")
 
-        # Fetch from PostgreSQL
-        query = text("""
-            SELECT pf.id::text as face_id, pf.photo_id::text as photo_id, pf.embedding
-            FROM photo_faces pf
-            JOIN photos p ON pf.photo_id = p.id
-            WHERE pf.event_id = :event_id AND pf.is_matchable = true AND p.status != 'failed'
-        """)
-        rows = self.db.execute(query, {"event_id": event_id_str}).fetchall()
-
-        embeddings = []
-        photo_ids = []
-        face_ids = []
-
-        for row in rows:
-            raw_emb = row.embedding
-            if isinstance(raw_emb, str):
-                vec = np.array(json.loads(raw_emb), dtype=np.float32)
-            elif isinstance(raw_emb, (list, tuple)):
-                vec = np.array(raw_emb, dtype=np.float32)
-            else:
-                vec = np.array(raw_emb, dtype=np.float32)
-
-            if vec.shape[0] != 512:
-                continue
-
-            norm = np.linalg.norm(vec)
-            if norm > 0:
-                vec = vec / norm
-
-            embeddings.append(vec)
-            photo_ids.append(row.photo_id)
-            face_ids.append(row.face_id)
-
-        if not embeddings:
-            return np.empty((0, 512), dtype=np.float32), [], []
-
-        P_matrix = np.vstack(embeddings).astype(np.float32)
-
-        if self.redis:
-            try:
-                payload = json.dumps({
-                    "matrix": P_matrix.tolist(),
-                    "photo_ids": photo_ids,
-                    "face_ids": face_ids,
-                })
-                self.redis.setex(cache_key, 600, payload)  # 10 min TTL
-            except Exception as e:
-                logger.warning(f"Redis cache write error for photo matrix: {e}")
-
-        return P_matrix, photo_ids, face_ids
 
     def search_by_selfie(
         self,
@@ -155,57 +85,30 @@ class SelfieSearchService:
                 except Exception:
                     pass
 
-        # Selfie vector S [1, 512]
-        selfie_vec = np.array(embedding_list, dtype=np.float32)
-        norm = np.linalg.norm(selfie_vec)
-        if norm > 0:
-            selfie_vec = selfie_vec / norm
+        # Use pgvector <=> (cosine distance) natively in DB
+        # The cosine similarity is (1 - cosine_distance)
+        # We group by photo_id and find the maximum similarity for the faces in that photo
+        selfie_vec_str = json.dumps(embedding_list)
 
-        # Fetch photo faces matrix
-        P_matrix, photo_ids, face_ids = self.get_event_photo_matrix(event_id_str)
+        query = text("""
+            SELECT pf.photo_id::text AS photo_id, MAX(1 - (pf.embedding <=> :selfie_emb)) AS sim
+            FROM photo_faces pf
+            JOIN photos p ON pf.photo_id = p.id
+            WHERE pf.event_id = :event_id AND pf.is_matchable = true AND p.status != 'failed'
+            GROUP BY pf.photo_id
+            HAVING MAX(1 - (pf.embedding <=> :selfie_emb)) >= :threshold
+            ORDER BY sim DESC
+            LIMIT 200
+        """)
 
-        if P_matrix.shape[0] == 0:
-            session_id = secrets.token_urlsafe(24)
-            self._save_session(session_id, [])
-            latency_ms = int((time.time() - start_time) * 1000)
-            log_entry = SelfieSearchLog(
-                event_id=event.id,
-                ip_hash=ip_hash,
-                user_agent_hash=user_agent_hash,
-                faces_detected=1,
-                threshold_used=threshold_used,
-                results_count=0,
-                top_similarity=None,
-                session_id=session_id,
-                latency_ms=latency_ms,
-            )
-            self.db.add(log_entry)
-            self.db.commit()
-            return session_id, []
+        rows = self.db.execute(query, {
+            "selfie_emb": selfie_vec_str,
+            "event_id": event_id_str,
+            "threshold": threshold_used
+        }).fetchall()
 
-        # Dot product similarities
-        similarities = (P_matrix @ selfie_vec.T).flatten()
-
-        # Group by photo_id -> max similarity
-        photo_sim_map: Dict[str, float] = {}
-        for idx, p_id in enumerate(photo_ids):
-            sim = float(similarities[idx])
-            if sim > photo_sim_map.get(p_id, -1.0):
-                photo_sim_map[p_id] = sim
-
-        # Filter >= threshold_used
-        matched_pairs = [
-            (p_id, sim) for p_id, sim in photo_sim_map.items() if sim >= threshold_used
-        ]
-
-        # Sort desc by similarity
-        matched_pairs.sort(key=lambda x: x[1], reverse=True)
-
-        # Cap top 200 photos (D23)
-        matched_pairs = matched_pairs[:200]
-
-        matched_photo_ids = [p_id for p_id, _ in matched_pairs]
-        top_similarity = matched_pairs[0][1] if matched_pairs else None
+        matched_photo_ids = [row.photo_id for row in rows]
+        top_similarity = float(rows[0].sim) if rows else None
 
         # Mint session ID (D24)
         session_id = secrets.token_urlsafe(24)

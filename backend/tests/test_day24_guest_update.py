@@ -11,6 +11,14 @@ from models.event import Event
 from models.guest import Guest
 from core.security import get_password_hash
 from main import app
+from middleware.rate_limit import limiter
+
+@pytest.fixture(autouse=True)
+def disable_rate_limits():
+    original = limiter.enabled
+    limiter.enabled = False
+    yield
+    limiter.enabled = original
 
 @pytest.fixture
 def setup_data(db_session: Session):
@@ -73,7 +81,7 @@ def test_guest_update_forbids_embedding(client: TestClient, db_session: Session,
         "first_name": "Johnny",
         "embedding": [0.9, 0.8, 0.7]
     }
-    resp = client.put(f"/api/v1/guests/{guest.id}", json=payload, cookies=cookies, headers=headers)
+    resp = client.patch(f"/api/v1/guests/{guest.id}", json=payload, cookies=cookies, headers=headers)
     
     # Should be 422 Unprocessable Entity due to extra="forbid"
     assert resp.status_code == 422
@@ -88,7 +96,7 @@ def test_guest_update_preserves_embedding(client: TestClient, db_session: Sessio
         "last_name": "Doe",
         "phone": "+1234567890"
     }
-    resp = client.put(f"/api/v1/guests/{guest.id}", json=payload, cookies=cookies, headers=headers)
+    resp = client.patch(f"/api/v1/guests/{guest.id}", json=payload, cookies=cookies, headers=headers)
     assert resp.status_code == 200
     
     # Check that embedding is still intact
@@ -114,11 +122,11 @@ def test_guest_update_optimistic_concurrency(client: TestClient, db_session: Ses
     # Valid If-Match
     headers["If-Match"] = server_etag
     payload = {"first_name": "Jane"}
-    resp = client.put(f"/api/v1/guests/{guest.id}", json=payload, cookies=cookies, headers=headers)
+    resp = client.patch(f"/api/v1/guests/{guest.id}", json=payload, cookies=cookies, headers=headers)
     assert resp.status_code == 200
 
     # Try again with the old ETag (should fail)
     payload = {"first_name": "Jack"}
-    resp = client.put(f"/api/v1/guests/{guest.id}", json=payload, cookies=cookies, headers=headers)
+    resp = client.patch(f"/api/v1/guests/{guest.id}", json=payload, cookies=cookies, headers=headers)
     assert resp.status_code == 412
     assert "Precondition Failed" in resp.text

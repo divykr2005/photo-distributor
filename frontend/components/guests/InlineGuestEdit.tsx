@@ -60,7 +60,7 @@ export default function InlineGuestEdit({ guest, onSaved }: InlineGuestEditProps
     const etag = String(new Date(guest.updated_at).getTime() / 1000);
 
     try {
-      const { data } = await api.put<Guest>(`/guests/${guest.id}`, patch, {
+      const { data } = await api.patch<Guest>(`/guests/${guest.id}`, patch, {
         headers: { "If-Match": `"${etag}"` },
       });
       onSaved(data);

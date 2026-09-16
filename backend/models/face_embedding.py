@@ -29,6 +29,7 @@ class FaceEmbedding(Base):
     model_version = Column(String(100), nullable=False, default="ArcFace")
     embedding_dim = Column(Integer, nullable=False, default=512)
     quality_score = Column(Float, nullable=True)
+    content_hash = Column(String(64), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

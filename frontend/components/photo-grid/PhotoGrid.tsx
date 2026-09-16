@@ -8,6 +8,11 @@ import { getClusters, PhotoCluster, runDeduplication } from "@/services/clusters
 import ClusterReviewModal from "./ClusterReviewModal";
 import BurstModal from "./BurstModal";
 
+const photoStatusLabel = (status: string) =>
+  status === "skipped_no_consent"
+    ? "Consent not configured"
+    : status.replaceAll("_", " ");
+
 function PhotoGridItem({ photo, cluster, onClick, selected, onSelectToggle }: { photo: Photo; cluster?: PhotoCluster; onClick: () => void; selected?: boolean; onSelectToggle?: (selected: boolean) => void }) {
   const { objectUrl } = useAuthImage(`/media/photos/${photo.id}/thumb`);
 
@@ -42,7 +47,7 @@ function PhotoGridItem({ photo, cluster, onClick, selected, onSelectToggle }: { 
               : "bg-amber-400"
           }`}
         />
-        <span className="capitalize">{photo.status}</span>
+        <span className="capitalize">{photoStatusLabel(photo.status)}</span>
       </div>
 
       {/* Faces count pill */}
@@ -73,6 +78,7 @@ function PhotoGridItem({ photo, cluster, onClick, selected, onSelectToggle }: { 
 }
 
 export default function PhotoGrid({ eventId }: { eventId: string }) {
+  const isExperimentalAIEnabled = process.env.NEXT_PUBLIC_FEATURE_EXPERIMENTAL_AI === 'true';
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [zeroFaceFilter, setZeroFaceFilter] = useState<string>("");
@@ -162,7 +168,7 @@ export default function PhotoGrid({ eventId }: { eventId: string }) {
         </div>
 
         <div className="flex items-center gap-3 ml-auto">
-          {process.env.NEXT_PUBLIC_FEATURE_EXPERIMENTAL_AI === 'true' && (
+          {isExperimentalAIEnabled && (
             <>
               <label className="flex items-center gap-2 text-xs text-slate-300 font-medium cursor-pointer bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 hover:bg-slate-900 transition">
                 <input 

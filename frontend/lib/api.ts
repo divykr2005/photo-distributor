@@ -19,6 +19,10 @@ function getCookie(name: string): string | null {
 
 // Attach CSRF token to every request
 api.interceptors.request.use((config) => {
+  if (config.data instanceof FormData) {
+    delete config.headers["Content-Type"];
+  }
+
   const csrfToken = getCookie("csrf_token");
   if (csrfToken) {
     config.headers["X-CSRF-Token"] = csrfToken;
@@ -42,61 +46,76 @@ function processQueue(error: unknown) {
 }
 
 api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+  (response) => {
+    console.log("api.ts: Intercepted successful response", response.config.url);
+    return response;
+  },
+  async (error: any) => {
+    const originalRequest = error.config as any;
+    console.log("api.ts: Intercepted error for", originalRequest?.url, error.response?.status);
 
-    // Only intercept 401s, skip if this is already a retry or a refresh/login call
-    if (
-      error.response?.status !== 401 ||
-      originalRequest._retry ||
-      originalRequest.url?.includes("/auth/login") ||
-      originalRequest.url?.includes("/auth/refresh") ||
-      originalRequest.url?.includes("/auth/register")
-    ) {
-      return Promise.reject(error);
-    }
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry &&
+        !originalRequest.url?.includes("/auth/login") &&
+        !originalRequest.url?.includes("/auth/refresh") &&
+        !originalRequest.url?.includes("/auth/register")) {
 
-    if (isRefreshing) {
-      // Queue subsequent 401s while a refresh is in-flight
-      return new Promise<void>((resolve, reject) => {
-        failedQueue.push({ resolve, reject });
-      }).then(() => {
-        // CSRF token might have changed, re-fetch it
+      if (isRefreshing) {
+        console.log("api.ts: Already refreshing, pushing to queue");
+        // Queue subsequent 401s while a refresh is in-flight
+        return new Promise<void>((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(() => {
+          console.log("api.ts: Retrying queued request", originalRequest.url);
+          // CSRF token might have changed, re-fetch it
+          const newCsrf = getCookie("csrf_token");
+          if (newCsrf) {
+            originalRequest.headers["X-CSRF-Token"] = newCsrf;
+          }
+          return api(originalRequest);
+        });
+      }
+
+      console.log("api.ts: Starting refresh flow");
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        console.log("api.ts: Calling /auth/refresh");
+        // Call refresh endpoint - backend reads refresh_token cookie
+        await axios.post(`${API_URL}/auth/refresh`, {}, { withCredentials: true });
+        console.log("api.ts: /auth/refresh success");
+
+        processQueue(null);
+
         const newCsrf = getCookie("csrf_token");
         if (newCsrf) {
           originalRequest.headers["X-CSRF-Token"] = newCsrf;
         }
+
+        console.log("api.ts: Retrying original request");
         return api(originalRequest);
-      });
+      } catch (refreshError) {
+        console.log("api.ts: /auth/refresh failed", refreshError);
+        processQueue(refreshError);
+
+        // Redirect to login on refresh failure (client-side only) if not already on an auth page
+        if (typeof window !== "undefined") {
+          const path = window.location.pathname;
+          if (!path.startsWith("/login") && !path.startsWith("/register")) {
+            console.log("api.ts: Redirecting to /login");
+            window.location.href = "/login";
+          }
+        }
+        console.log("api.ts: Rejecting original promise with refreshError");
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+        console.log("api.ts: Refresh flow finally block completed");
+      }
     }
 
-    originalRequest._retry = true;
-    isRefreshing = true;
-
-    try {
-      // Call refresh endpoint - backend reads refresh_token cookie
-      await axios.post(`${API_URL}/auth/refresh`, {}, { withCredentials: true });
-
-      processQueue(null);
-
-      // Re-fetch the CSRF token from the new cookie
-      const newCsrf = getCookie("csrf_token");
-      if (newCsrf) {
-        originalRequest.headers["X-CSRF-Token"] = newCsrf;
-      }
-      return api(originalRequest);
-    } catch (refreshError) {
-      processQueue(refreshError);
-      
-      // Redirect to login on refresh failure (client-side only)
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
-      }
-      return Promise.reject(refreshError);
-    } finally {
-      isRefreshing = false;
-    }
+    console.log("api.ts: Rejecting with original error");
+    return Promise.reject(error);
   }
 );
 

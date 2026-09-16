@@ -1,4 +1,3 @@
-import { API_URL } from "@/lib/config";
 "use client";
 
 import { useParams } from "next/navigation";
@@ -15,7 +14,7 @@ import {
 
 import ZipDownloadButton from "@/components/portal/ZipDownloadButton";
 
-
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 /* ── Types ── */
 

@@ -16,55 +16,74 @@ class FaceEmbeddingRepository:
         guest_id: UUID,
         embedding: list[float],
         quality_score: float | None = None,
+        content_hash: str | None = None,
         model_version: str = "ArcFace",
         embedding_dim: int = 512,
     ) -> FaceEmbedding:
-        from services.crypto.envelope import get_or_unwrap_kek, get_or_unwrap_dek, encrypt_embedding
         import json
-        
-        # Dual-write: encrypt the embedding first
+        import uuid
+        import logging
+        import typing
+        from services.crypto.envelope import get_or_unwrap_kek, get_or_unwrap_dek, encrypt_embedding
+
+        _log = logging.getLogger(__name__)
+
         guest = self.db.query(Guest).filter(Guest.id == guest_id).first()
-        ciphertext, nonce = None, None
-        
-        if guest and guest.wrapped_dek:
+        if not guest:
+            raise ValueError(f"Guest {guest_id} not found — cannot create embedding.")
+
+        ciphertext: bytes | None = None
+        nonce: bytes | None = None
+        fe_id = uuid.uuid4()
+
+        if guest.wrapped_dek:
             from models.event import Event
             event = self.db.query(Event).filter(Event.id == guest.event_id).first()
             if event and event.wrapped_kek:
-                kek_blob = event.wrapped_kek # type: ignore
+                kek_blob = typing.cast(bytes, event.wrapped_kek)
                 kek_nonce, kek_wrapped = kek_blob[:12], kek_blob[12:]
-                import typing
-                kek = get_or_unwrap_kek(str(event.id), typing.cast(bytes, kek_wrapped), typing.cast(bytes, kek_nonce))
-                
-                dek_blob = guest.wrapped_dek # type: ignore
+                kek = get_or_unwrap_kek(str(event.id), kek_wrapped, kek_nonce)
+
+                dek_blob = typing.cast(bytes, guest.wrapped_dek)
                 dek_nonce, dek_wrapped = dek_blob[:12], dek_blob[12:]
-                dek = get_or_unwrap_dek(str(guest_id), typing.cast(bytes, dek_wrapped), typing.cast(bytes, dek_nonce), kek)
-                
-                # Mock an ID since it's AAD. But FaceEmbedding hasn't been created yet.
-                # To bind AAD to row ID properly, we need the UUID before inserting.
-                import uuid
-                fe_id = uuid.uuid4()
-                
-                embedding_bytes = json.dumps(embedding).encode('utf-8')
+                dek = get_or_unwrap_dek(str(guest_id), dek_wrapped, dek_nonce, kek)
+
+                embedding_bytes = json.dumps(embedding).encode("utf-8")
                 ciphertext, nonce = encrypt_embedding(
                     embedding_bytes, dek, str(guest_id), str(event.id), str(fe_id), model_version
                 )
             else:
-                import uuid
-                fe_id = uuid.uuid4()
+                _log.error(
+                    "Guest %s has wrapped_dek but event %s has no wrapped_kek — "
+                    "refusing to store plaintext embedding.",
+                    guest_id, guest.event_id,
+                )
+                raise RuntimeError(
+                    f"Encryption key unavailable for event {guest.event_id}. "
+                    "Embedding not stored."
+                )
         else:
-            import uuid
-            fe_id = uuid.uuid4()
-            
+            _log.error(
+                "Guest %s has no wrapped_dek — refusing to store plaintext embedding.",
+                guest_id,
+            )
+            raise RuntimeError(
+                f"Guest {guest_id} has no data-encryption key. "
+                "Ensure key provisioning ran before embedding extraction."
+            )
+
+        # Never write the plaintext `embedding` column — encryption is mandatory.
         record = FaceEmbedding(
             id=fe_id,
             guest_id=guest_id,
             model_version=model_version,
             embedding_dim=embedding_dim,
             quality_score=quality_score,
-            embedding=embedding,
+            content_hash=content_hash,
+            embedding=None,        # plaintext column intentionally left NULL
             embedding_enc=ciphertext,
             enc_nonce=nonce,
-            enc_key_id="local" if ciphertext else None,
+            enc_key_id="local",
         )
         self.db.add(record)
         self.db.commit()

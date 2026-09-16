@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 
 from models.event import Event
 from models.guest import Guest
+from models.user import User
 from models.face_embedding import FaceEmbedding
 from services.crypto.envelope import generate_key, wrap_key, get_master_key, encrypt_embedding, decrypt_embedding
 
-def test_crypto_shredding(db: Session):
+def test_crypto_shredding(db_session: Session):
     """
     Test W4.D10: Destroying a guest's wrapped_dek renders their reference embeddings
     unrecoverable, ensuring crypto-shredding works.
@@ -20,16 +21,26 @@ def test_crypto_shredding(db: Session):
     wrapped_kek, kek_nonce = wrap_key(kek, master_key)
     kek_blob = kek_nonce + wrapped_kek
     
+    user = User(
+        id=uuid.uuid4(),
+        name="Test User",
+        email=f"test_{uuid.uuid4()}@example.com",
+        password_hash="mock",
+    )
+    db_session.add(user)
+    db_session.commit()
+
     event = Event(
         id=uuid.uuid4(),
         title="Test Event for Shredding",
         date=datetime.now(timezone.utc),
-        created_by=uuid.uuid4(),  # Mock user
+        created_by=user.id,
+
         wrapped_kek=kek_blob,
         kek_key_id="local",
     )
-    db.add(event)
-    db.commit()
+    db_session.add(event)
+    db_session.commit()
     
     # Setup Guest with DEK
     dek = generate_key()
@@ -45,8 +56,8 @@ def test_crypto_shredding(db: Session):
         wrapped_dek=dek_blob,
         dek_key_id="local"
     )
-    db.add(guest)
-    db.commit()
+    db_session.add(guest)
+    db_session.commit()
     
     # Setup Encrypted FaceEmbedding
     fe_id = uuid.uuid4()
@@ -67,8 +78,8 @@ def test_crypto_shredding(db: Session):
         enc_key_id="local",
         model_version=model_version
     )
-    db.add(fe)
-    db.commit()
+    db_session.add(fe)
+    db_session.commit()
     
     # 1. Assert we can decrypt successfully initially
     decrypted_bytes = decrypt_embedding(
@@ -78,8 +89,8 @@ def test_crypto_shredding(db: Session):
     
     # 2. Shred the Guest's DEK
     guest.wrapped_dek = None # type: ignore
-    db.commit()
-    db.refresh(guest)
+    db_session.commit()
+    db_session.refresh(guest)
     
     # 3. Try to recover DEK and decrypt - should fail because wrapped_dek is None
     with pytest.raises(Exception):

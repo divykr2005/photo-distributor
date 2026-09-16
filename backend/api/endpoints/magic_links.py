@@ -109,8 +109,7 @@ def generate_magic_link(
     token_row, plaintext = _generate_token(db, guest, event, current_user.id) # type: ignore
     db.commit()
     db.refresh(token_row)
-
-    portal_url = f"{settings.FRONTEND_URL}/g/{plaintext}"
+    portal_url = f"{str(settings.FRONTEND_URL).rstrip('/')}/g/{plaintext}"
 
     return MagicLinkResponse(
         guest_id=guest.id, # type: ignore
@@ -162,7 +161,7 @@ def bulk_generate_magic_links(
             MagicLinkResponse(
                 guest_id=guest.id, # type: ignore
                 access_code=plaintext,
-                portal_url=f"{settings.FRONTEND_URL}/g/{plaintext}",
+                portal_url=f"{str(settings.FRONTEND_URL).rstrip('/')}/g/{plaintext}",
                 expires_at=token_row.expires_at, # type: ignore
             )
         )

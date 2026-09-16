@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
@@ -21,6 +21,7 @@ from schemas.notification import (
     NotificationTestRequest,
 )
 from services.notifier import get_notifier, render_email_template
+from services.opt_out import decode_opt_out_token
 from workers.notifications import run_event_notification_dispatch
 
 router = APIRouter()
@@ -168,7 +169,7 @@ def send_test_notification(
         event_title=event.title, # type: ignore
         photo_count=12,
         magic_link=f"{frontend_url}/g/test_token_preview",
-        opt_out_link=f"{frontend_url}/api/v1/public/opt-out?guest_id=test",
+        opt_out_link="#",
     )
 
     notifier = get_notifier(payload.channel)
@@ -203,15 +204,55 @@ public_opt_out_router = APIRouter()
     status_code=status.HTTP_200_OK,
 )
 def guest_opt_out(
-    guest_id: UUID,
+    token: str,
     db: Session = Depends(get_db),
 ):
     """
-    Public opt-out link endpoint allowing guests to unsubscribe from event notifications.
+    Render a confirmation page. GET is deliberately read-only so email link
+    scanners cannot unsubscribe a guest merely by following the URL.
     """
+    try:
+        guest_id = decode_opt_out_token(token)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Opt-out link not found")
+
     guest = db.query(Guest).filter(Guest.id == guest_id).first()
     if not guest:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guest record not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Opt-out link not found")
+
+    import html
+    safe_token = html.escape(token, quote=True)
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Confirm opt-out</title></head>
+<body style="font-family: system-ui, sans-serif; background-color: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
+  <form method="post" action="/api/v1/public/opt-out" style="background-color: #1e293b; padding: 32px; border-radius: 16px; border: 1px solid #334155; text-align: center; max-width: 420px;">
+    <h2 style="margin-top: 0;">Stop event notifications?</h2>
+    <p style="color: #94a3b8;">Confirm that you no longer want notifications about your event photos.</p>
+    <input type="hidden" name="token" value="{safe_token}">
+    <button type="submit" style="background: #dc2626; color: white; border: 0; border-radius: 8px; padding: 10px 18px; cursor: pointer;">Confirm opt-out</button>
+  </form>
+</body>
+</html>"""
+
+
+@public_opt_out_router.post(
+    "/public/opt-out",
+    response_class=HTMLResponse,
+    status_code=status.HTTP_200_OK,
+)
+def confirm_guest_opt_out(
+    token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        guest_id = decode_opt_out_token(token)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Opt-out link not found")
+
+    guest = db.query(Guest).filter(Guest.id == guest_id).first()
+    if not guest:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Opt-out link not found")
 
     guest.notify_opt_out_at = datetime.now(timezone.utc) # type: ignore
     db.commit()
