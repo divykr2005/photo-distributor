@@ -5,6 +5,9 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { TaskProvider } from "@/contexts/TaskContext";
 import GlobalTaskWidget from "@/components/ui/GlobalTaskWidget";
 
+// Cloudflare Pages Functions run Next.js server-rendered routes on the Edge
+// Runtime. Defining this at the root makes every child route inherit it.
+export const runtime = "edge";
 
 const albert = Albert_Sans({
   subsets: ["latin"],
