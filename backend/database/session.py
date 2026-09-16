@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
 from core.config import settings
 
@@ -11,9 +11,22 @@ engine = create_engine(
     pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
     connect_args={
         "connect_timeout": settings.DB_CONNECT_TIMEOUT_SECONDS,
-        "options": f"-c statement_timeout={settings.DB_STATEMENT_TIMEOUT_MS}",
     },
 )
+
+
+@event.listens_for(engine, "begin")
+def _set_transaction_statement_timeout(connection):
+    """Apply the timeout inside each transaction.
+
+    Neon pooler endpoints reject PostgreSQL startup ``options`` parameters, so
+    this cannot be supplied through ``connect_args``. ``SET LOCAL`` works with
+    pooled and direct PostgreSQL connections and cannot leak to the next user
+    of a pooled server connection.
+    """
+    connection.exec_driver_sql(
+        f"SET LOCAL statement_timeout = {int(settings.DB_STATEMENT_TIMEOUT_MS)}"
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
