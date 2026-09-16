@@ -59,10 +59,14 @@ def get_photo_web(
     current_user: User = Depends(get_current_user),
 ):
     photo = db.query(Photo).filter(Photo.id == photo_id).first()
-    if not photo or not photo.web_key:
-        raise HTTPException(status_code=404, detail="Web photo derivative not found")
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
     _verify_event_owner(db, photo.event_id, current_user.id) # type: ignore
-    return _serve_key(photo.web_key, media_type="image/jpeg") # type: ignore
+    # Photos whose biometric processing is blocked by the consent gate may not
+    # have derivatives. Organizers can still view their own uploaded original.
+    key = photo.web_key or photo.storage_key
+    media_type = "image/jpeg" if photo.web_key else (photo.mime_type or "image/jpeg")
+    return _serve_key(key, media_type=media_type) # type: ignore
 
 
 @router.get("/media/photos/{photo_id}/thumb")
@@ -72,10 +76,14 @@ def get_photo_thumb(
     current_user: User = Depends(get_current_user),
 ):
     photo = db.query(Photo).filter(Photo.id == photo_id).first()
-    if not photo or not photo.thumb_key:
-        raise HTTPException(status_code=404, detail="Thumbnail derivative not found")
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
     _verify_event_owner(db, photo.event_id, current_user.id) # type: ignore
-    return _serve_key(photo.thumb_key, media_type="image/jpeg") # type: ignore
+    # See get_photo_web: this fallback is ownership-protected and does not
+    # perform or expose biometric processing.
+    key = photo.thumb_key or photo.storage_key
+    media_type = "image/jpeg" if photo.thumb_key else (photo.mime_type or "image/jpeg")
+    return _serve_key(key, media_type=media_type) # type: ignore
 
 
 @router.get("/media/faces/{photo_face_id}")
