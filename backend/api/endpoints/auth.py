@@ -18,6 +18,14 @@ router = APIRouter()
 def set_auth_cookies(response: Response, token_pair: dict):
     domain = settings.COOKIE_DOMAIN if settings.ENVIRONMENT != "dev" else None
     secure = settings.ENVIRONMENT != "dev"
+
+    # Remove cookies created before a shared production cookie domain was
+    # configured. Otherwise browsers can send two csrf_token values and make
+    # double-submit validation intermittent after deployment.
+    if domain:
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
+        response.delete_cookie("csrf_token")
     
     response.set_cookie(
         key="access_token",
@@ -55,6 +63,10 @@ def clear_auth_cookies(response: Response):
     response.delete_cookie("access_token", domain=domain)
     response.delete_cookie("refresh_token", domain=domain)
     response.delete_cookie("csrf_token", domain=domain)
+    if domain:
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
+        response.delete_cookie("csrf_token")
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
