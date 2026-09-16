@@ -1,0 +1,111 @@
+x-oracle-base: &oracle-base
+  image: "photo-distr-backend:${IMAGE_TAG:-current}"
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  env_file:
+    - .env
+    - /etc/photo-distributor/runtime.env
+  working_dir: /app
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-oracle-env: &oracle-env
+  PYTHONPATH: /app
+  PYTHONUNBUFFERED: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  MALLOC_ARENA_MAX: "2"
+
+services:
+  migrate:
+    <<: *oracle-base
+    container_name: "photo_distr_${DEPLOYMENT_SLOT:-next}_migrate"
+    restart: "no"
+    environment: *oracle-env
+    command: alembic upgrade head
+    mem_limit: 512m
+    memswap_limit: 512m
+
+  backend:
+    <<: *oracle-base
+    container_name: "photo_distr_${DEPLOYMENT_SLOT:-next}_backend"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment: *oracle-env
+    ports:
+      - "127.0.0.1:${BACKEND_BIND_PORT:-8001}:8000"
+    command: >
+      uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
+      --proxy-headers --forwarded-allow-ips='*' --timeout-keep-alive 65
+      --limit-concurrency 128 --no-access-log
+    mem_limit: 768m
+    memswap_limit: 1024m
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  worker-faces:
+    <<: *oracle-base
+    container_name: "photo_distr_${DEPLOYMENT_SLOT:-next}_worker_faces"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+    environment:
+      <<: *oracle-env
+      INSIGHTFACE_MODEL: buffalo_l
+      INSIGHTFACE_DET_SIZE: "640"
+      INSIGHTFACE_HOME: /models
+    volumes:
+      - insightface_models:/models
+    command: >
+      celery -A core.celery_app.celery_app worker --loglevel=info
+      --pool=prefork --concurrency=1 --prefetch-multiplier=1
+      --max-tasks-per-child=100 --max-memory-per-child=1750000
+      --without-gossip --without-mingle --without-heartbeat
+      -Q faces -n faces@%h
+    mem_limit: 2300m
+    memswap_limit: 2500m
+    mem_swappiness: 0
+    oom_score_adj: 600
+
+  worker-general:
+    <<: *oracle-base
+    container_name: "photo_distr_${DEPLOYMENT_SLOT:-next}_worker_general"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+    environment: *oracle-env
+    volumes:
+      - celerybeat:/var/lib/celerybeat
+      - zip_staging:/var/tmp/zips
+    command: >
+      celery -A core.celery_app.celery_app worker --loglevel=info
+      --pool=threads --concurrency=4 --prefetch-multiplier=1
+      --without-gossip --without-mingle --without-heartbeat
+      -Q match,celery,maintenance -n general@%h
+      --beat --schedule=/var/lib/celerybeat/schedule
+    mem_limit: 576m
+    memswap_limit: 768m
+    oom_score_adj: 300
+
+volumes:
+  insightface_models:
+    external: true
+    name: photo-distributor_insightface_models
+  celerybeat:
+  zip_staging:
