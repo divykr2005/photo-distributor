@@ -11,9 +11,11 @@ interface CameraCaptureProps {
 
 export default function CameraCapture({ onCapture, currentImage, allowUpload = true }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [streaming, setStreaming] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [preview, setPreview] = useState<string | null>(currentImage || null);
   const [error, setError] = useState("");
 
@@ -21,31 +23,50 @@ export default function CameraCapture({ onCapture, currentImage, allowUpload = t
     setError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: 640, height: 480 },
+        video: {
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 960 },
+        },
+        audio: false,
       });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setStreaming(true);
-        setPreview(null);
-      }
+      streamRef.current = stream;
+      setCameraReady(false);
+      setPreview(null);
+      setStreaming(true);
     } catch {
       setError("Camera access was unavailable. Allow camera permission in your browser and try again.");
     }
   }, []);
 
   const stopCamera = useCallback(() => {
-    if (videoRef.current?.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach((t) => t.stop());
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    setCameraReady(false);
     setStreaming(false);
   }, []);
 
   useEffect(() => stopCamera, [stopCamera]);
 
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!streaming || !video || !stream) return;
+
+    video.srcObject = stream;
+    video.play().catch(() => {
+      setError("The camera opened, but the preview could not start. Tap Open Camera and try again.");
+      stopCamera();
+    });
+  }, [streaming, stopCamera]);
+
   const capturePhoto = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!cameraReady || !videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     canvas.width = video.videoWidth;
@@ -64,7 +85,7 @@ export default function CameraCapture({ onCapture, currentImage, allowUpload = t
       "image/jpeg",
       0.9
     );
-  }, [onCapture, stopCamera]);
+  }, [cameraReady, onCapture, stopCamera]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -123,10 +144,16 @@ export default function CameraCapture({ onCapture, currentImage, allowUpload = t
             autoPlay
             playsInline
             muted
+            onLoadedMetadata={() => setCameraReady(true)}
             className="w-full max-w-sm rounded-xl border border-slate-700 aspect-[4/3] object-cover bg-black"
           />
+          {!cameraReady && (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-300 bg-black/60 rounded-xl">
+              Starting camera…
+            </div>
+          )}
           <div className="flex gap-2 mt-3">
-            <Button type="button" onClick={capturePhoto} size="sm">
+            <Button type="button" onClick={capturePhoto} size="sm" disabled={!cameraReady}>
               📸 Capture
             </Button>
             <Button type="button" variant="secondary" size="sm" onClick={stopCamera}>
