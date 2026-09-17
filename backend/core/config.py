@@ -65,7 +65,8 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str | None = None
     SMTP_PASSWORD: str | None = None
-    SMTP_FROM: str = "noreply@eventphotos.com"
+    # When omitted, the SMTP adapter uses the authenticated SMTP_USER address.
+    SMTP_FROM: str | None = None
     SMTP_TLS: bool = True
 
     # Meta WhatsApp Business API

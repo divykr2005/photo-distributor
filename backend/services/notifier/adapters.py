@@ -43,22 +43,23 @@ class SmtpNotifier:
         body_html: Optional[str] = None,
         extra_data: Optional[dict] = None,
     ) -> NotificationResult:
-        if not settings.SMTP_HOST:
+        sender = settings.SMTP_FROM or settings.SMTP_USER
+        if not settings.SMTP_HOST or not sender:
             logger.error(
-                "[SMTP] SMTP_HOST is not configured. Set SMTP_HOST in .env "
-                "before dispatching email notifications."
+                "[SMTP] SMTP_HOST and a sender address are required. Set "
+                "SMTP_HOST plus SMTP_FROM or SMTP_USER before sending email."
             )
             return NotificationResult(
                 success=False,
                 provider="smtp",
-                error="SMTP_HOST not configured",
+                error="SMTP host or sender not configured",
                 is_transient=False,
             )
 
         try:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
-            msg["From"] = settings.SMTP_FROM
+            msg["From"] = sender
             msg["To"] = recipient
 
             msg.attach(MIMEText(body_text, "plain"))
@@ -75,7 +76,7 @@ class SmtpNotifier:
             with server:
                 if settings.SMTP_USER and settings.SMTP_PASSWORD:
                     server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-                server.sendmail(settings.SMTP_FROM, [recipient], msg.as_string())
+                server.sendmail(sender, [recipient], msg.as_string())
 
             return NotificationResult(
                 success=True,
