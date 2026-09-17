@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from models.guest import EmbeddingStatus
 
@@ -26,6 +26,7 @@ class GuestUpdate(BaseModel):
     first_name: str | None = Field(None, min_length=1, max_length=100)
     last_name: str | None = Field(None, min_length=1, max_length=100)
     phone: str | None = Field(None, min_length=7, max_length=20)
+    email: EmailStr | None = None
 
 
 class GuestResponse(BaseModel):

@@ -7,6 +7,7 @@ import {
   HiOutlinePlus,
   HiOutlineSearch,
   HiOutlineTrash,
+  HiOutlinePencil,
   HiOutlineChevronLeft,
   HiOutlineChevronRight,
 } from "react-icons/hi";
@@ -14,6 +15,7 @@ import api from "@/lib/api";
 import type { Guest, Event, PaginatedEvents, PaginatedGuests } from "@/types";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
 import Toast from "@/components/ui/Toast";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 
@@ -31,6 +33,7 @@ const embeddingColors: Record<string, string> = {
   pending: "bg-amber-500/20 text-amber-300 border-amber-500/30",
   success: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
   failed: "bg-red-500/20 text-red-300 border-red-500/30",
+  no_face: "bg-orange-500/20 text-orange-300 border-orange-500/30",
 };
 
 export default function GuestsPage() {
@@ -44,6 +47,8 @@ export default function GuestsPage() {
   const [search, setSearch] = useState("");
   const [filterEvent, setFilterEvent] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const requestSequence = useRef(0);
 
   const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
@@ -51,9 +56,9 @@ export default function GuestsPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const fetchGuests = useCallback(async (pg: number) => {
+  const fetchGuests = useCallback(async (pg: number, showLoading = true) => {
     const sequence = ++requestSequence.current;
-    setLoading(true);
+    if (showLoading) setLoading(true);
     try {
       const params = new URLSearchParams({
         page: String(pg),
@@ -69,7 +74,7 @@ export default function GuestsPage() {
     } catch {
       if (sequence === requestSequence.current) setError("Failed to load guests");
     } finally {
-      if (sequence === requestSequence.current) setLoading(false);
+      if (showLoading && sequence === requestSequence.current) setLoading(false);
     }
   }, [search, filterEvent]);
 
@@ -86,6 +91,14 @@ export default function GuestsPage() {
     return () => clearTimeout(t);
   }, [page, search, filterEvent, fetchGuests]);
 
+  // Registration processing is asynchronous. Refresh only while this page has
+  // pending guests, then stop polling as soon as every visible status settles.
+  useEffect(() => {
+    if (!guests.some((guest) => guest.embedding_status === "pending")) return;
+    const interval = window.setInterval(() => fetchGuests(page, false), 3000);
+    return () => window.clearInterval(interval);
+  }, [guests, page, fetchGuests]);
+
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this guest?")) return;
     setDeleting(id);
@@ -101,6 +114,29 @@ export default function GuestsPage() {
       setError("Failed to delete guest");
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingGuest) return;
+    setSavingEdit(true);
+    setError("");
+    const form = new FormData(e.currentTarget);
+    try {
+      const { data } = await api.patch<Guest>(`/guests/${editingGuest.id}`, {
+        first_name: String(form.get("first_name") || "").trim(),
+        last_name: String(form.get("last_name") || "").trim(),
+        phone: String(form.get("phone") || "").trim(),
+        email: String(form.get("email") || "").trim() || null,
+      });
+      setGuests((current) => current.map((guest) => guest.id === data.id ? data : guest));
+      setEditingGuest(null);
+      setSuccess("Guest updated");
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "Failed to update guest");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -272,14 +308,23 @@ export default function GuestsPage() {
                         {new Date(guest.created_at).toLocaleDateString()}
                       </td>
                       <td className="py-3 px-6 text-right">
-                        <button
-                          onClick={() => handleDelete(guest.id)}
-                          disabled={deleting === guest.id}
-                          className="p-2 rounded-lg text-zinc-500 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-zinc-800 transition-all cursor-pointer disabled:opacity-50"
-                          title="Delete Guest"
-                        >
-                          <HiOutlineTrash className="w-4 h-4" />
-                        </button>
+                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                          <button
+                            onClick={() => setEditingGuest(guest)}
+                            className="p-2 rounded-lg text-zinc-500 hover:text-indigo-400 hover:bg-zinc-800 transition-all cursor-pointer"
+                            title="Edit Guest"
+                          >
+                            <HiOutlinePencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(guest.id)}
+                            disabled={deleting === guest.id}
+                            className="p-2 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition-all cursor-pointer disabled:opacity-50"
+                            title="Delete Guest"
+                          >
+                            <HiOutlineTrash className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -316,6 +361,27 @@ export default function GuestsPage() {
             </div>
           )}
         </Card>
+      )}
+      {editingGuest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Edit guest">
+          <Card className="w-full max-w-lg">
+            <h2 className="text-xl font-semibold text-white mb-5">Edit Guest</h2>
+            <form onSubmit={handleEdit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input label="First Name" name="first_name" defaultValue={editingGuest.first_name} required />
+                <Input label="Last Name" name="last_name" defaultValue={editingGuest.last_name} required />
+              </div>
+              <Input label="Phone" name="phone" type="tel" defaultValue={editingGuest.phone} required />
+              <Input label="Email" name="email" type="email" defaultValue={editingGuest.email || ""} />
+              <div className="flex justify-end gap-3 pt-2">
+                <Button type="button" variant="secondary" onClick={() => setEditingGuest(null)} disabled={savingEdit}>
+                  Cancel
+                </Button>
+                <Button type="submit" isLoading={savingEdit}>Save Changes</Button>
+              </div>
+            </form>
+          </Card>
+        </div>
       )}
       {/* Modals */}
       {filterEvent && (

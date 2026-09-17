@@ -69,7 +69,12 @@ def process_guest_registration_photo(guest_id: str, photo_path: str, db: Session
     except (FaceQualityError, ValueError) as e:
         error_msg = str(e)
         logger.warning(f"Quality gate failed for guest {guest_id}: {error_msg}")
-        emb_repo.set_guest_embedding_status(guest, EmbeddingStatus.FAILED)
+        status = (
+            EmbeddingStatus.NO_FACE
+            if "no face detected" in error_msg.lower()
+            else EmbeddingStatus.FAILED
+        )
+        emb_repo.set_guest_embedding_status(guest, status)
         # Re-raise so the endpoint can surface the specific error to the caller
         raise
 
@@ -142,6 +147,26 @@ def process_guest_registration_photo_task(self, guest_id: str, storage_key: str)
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+    except (FaceQualityError, ValueError) as e:
+        # Deterministic quality failures must not be retried. If the lightweight
+        # API check missed a face-free image, remove the persisted selfie too.
+        error_msg = str(e)
+        is_no_face = "no face detected" in error_msg.lower()
+        db.rollback()
+        guest = GuestRepository(db).get_by_id(UUID(guest_id))
+        if guest:
+            if is_no_face:
+                try:
+                    storage.delete(storage_key)
+                except Exception:
+                    pass
+                guest.image_path = None  # type: ignore
+                guest.embedding_status = EmbeddingStatus.NO_FACE  # type: ignore
+            else:
+                guest.embedding_status = EmbeddingStatus.FAILED  # type: ignore
+            db.commit()
+        logger.warning("Guest selfie quality rejection for %s: %s", guest_id, error_msg)
+        return
     except Exception as e:
         logger.error(f"process_guest_registration_photo_task failed for {guest_id}: {e}")
         db.rollback()

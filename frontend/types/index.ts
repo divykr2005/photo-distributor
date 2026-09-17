@@ -70,7 +70,7 @@ export interface Guest {
   gender: string | null;
   notes: string | null;
   image_path: string | null;
-  embedding_status: "pending" | "success" | "failed";
+  embedding_status: "pending" | "success" | "failed" | "no_face";
   consent_given_at: string | null;
   created_at: string;
   updated_at: string;

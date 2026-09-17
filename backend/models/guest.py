@@ -13,6 +13,7 @@ class EmbeddingStatus(str, enum.Enum):
     PENDING = "pending"
     SUCCESS = "success"
     FAILED = "failed"
+    NO_FACE = "no_face"
 
 
 class Guest(Base):

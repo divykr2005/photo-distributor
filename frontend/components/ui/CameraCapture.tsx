@@ -1,14 +1,15 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import Button from "@/components/ui/Button";
 
 interface CameraCaptureProps {
   onCapture: (file: File) => void;
   currentImage?: string | null;
+  allowUpload?: boolean;
 }
 
-export default function CameraCapture({ onCapture, currentImage }: CameraCaptureProps) {
+export default function CameraCapture({ onCapture, currentImage, allowUpload = true }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -28,7 +29,7 @@ export default function CameraCapture({ onCapture, currentImage }: CameraCapture
         setPreview(null);
       }
     } catch {
-      setError("Camera access denied. Please allow camera access or upload a photo instead.");
+      setError("Camera access was unavailable. Allow camera permission in your browser and try again.");
     }
   }, []);
 
@@ -40,6 +41,8 @@ export default function CameraCapture({ onCapture, currentImage }: CameraCapture
     }
     setStreaming(false);
   }, []);
+
+  useEffect(() => stopCamera, [stopCamera]);
 
   const capturePhoto = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -139,21 +142,25 @@ export default function CameraCapture({ onCapture, currentImage }: CameraCapture
           <Button type="button" variant="secondary" size="sm" onClick={startCamera}>
             📷 Open Camera
           </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            📁 Upload Photo
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={handleFileUpload}
-          />
+          {allowUpload && (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                📁 Upload Photo
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleFileUpload}
+              />
+            </>
+          )}
         </div>
       )}
 

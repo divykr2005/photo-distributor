@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from api.dependencies import get_current_user, get_db
 from models.event import Event
 from models.user import User
+from models.guest import EmbeddingStatus
 from repositories.guest_repository import GuestRepository
 from repositories.face_embedding_repository import FaceEmbeddingRepository
 from schemas.guest import GuestCreate, GuestResponse, GuestUpdate
@@ -217,6 +218,16 @@ async def upload_guest_photo(
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
     _verify_event_owner(db, guest.event_id, current_user.id)
+
+    from services.face_presence import contains_face
+    if not contains_face(contents):
+        if not guest.image_path:
+            guest.embedding_status = EmbeddingStatus.NO_FACE  # type: ignore
+            db.commit()
+        raise HTTPException(
+            status_code=422,
+            detail="No face detected. Centre the guest's face in the camera and retake the photo.",
+        )
 
     from models.consent import BiometricConsent
     consent = db.query(BiometricConsent).filter(

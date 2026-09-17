@@ -83,6 +83,14 @@ async def public_guest_register(
     if len(contents) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image must be under 10 MB.")
 
+    # Reject before creating a guest or writing anything to persistent storage.
+    from services.face_presence import contains_face
+    if not contains_face(contents):
+        raise HTTPException(
+            status_code=422,
+            detail="No face detected. Centre your face in the camera and retake the selfie.",
+        )
+
     # Phone normalization to E.164
     import phonenumbers
     try:

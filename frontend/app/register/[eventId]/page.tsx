@@ -1,14 +1,15 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
-import { HiOutlinePhotograph, HiOutlineCheckCircle, HiOutlineExclamationCircle, HiCamera } from "react-icons/hi";
+import { useState, useEffect } from "react";
+import { HiOutlineCheckCircle, HiOutlineExclamationCircle } from "react-icons/hi";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Toast from "@/components/ui/Toast";
 import api from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth";
+import CameraCapture from "@/components/ui/CameraCapture";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -34,15 +35,12 @@ export default function MobileRegistrationPage() {
   const [phone, setPhone] = useState("");
   const [gender, setGender] = useState("");
   const [selfie, setSelfie] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // OTP State
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [verificationResult, setVerificationResult] = useState<ConfirmationResult | null>(null);
   const [firebaseToken, setFirebaseToken] = useState<string | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Initialize recaptcha when component mounts
@@ -70,15 +68,6 @@ export default function MobileRegistrationPage() {
         setLoading(false);
       });
   }, [eventId]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      setSelfie(file);
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-    }
-  };
 
   const handleSendOtp = async () => {
     if (!phone || !auth) return;
@@ -207,7 +196,7 @@ export default function MobileRegistrationPage() {
           {eventInfo?.title}
         </h1>
         <p className="text-zinc-400 text-sm mt-2 font-medium">
-          Upload a quick selfie so we can find your photos!
+          Take a quick selfie so we can find your photos!
         </p>
       </header>
 
@@ -215,49 +204,12 @@ export default function MobileRegistrationPage() {
       <main className="px-6 pt-8">
         <form onSubmit={handleSubmit} className="space-y-6">
 
-          {/* Selfie Uploader */}
+          {/* Camera-only selfie capture */}
           <div className="flex flex-col items-center">
-            <input
-              type="file"
-              accept="image/*"
-              capture="user"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              className="hidden"
-            />
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className={`relative overflow-hidden w-40 h-40 rounded-full border-2 flex flex-col items-center justify-center transition-all shadow-xl ${
-                previewUrl
-                  ? 'border-indigo-500 shadow-indigo-500/20'
-                  : 'border-dashed border-zinc-700 bg-zinc-900 hover:border-indigo-500/50 hover:bg-zinc-800'
-              }`}
-            >
-              {previewUrl ? (
-                <>
-                  <img src={previewUrl} alt="Selfie preview" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                    <span className="text-white font-medium text-sm flex items-center gap-2">
-                      <HiCamera className="w-5 h-5"/> Retake
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center p-4">
-                  <div className="w-12 h-12 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto mb-2">
-                    <HiCamera className="w-6 h-6" />
-                  </div>
-                  <span className="text-sm font-medium text-zinc-300 block">Tap to Take Selfie</span>
-                </div>
-              )}
-            </button>
-            {!previewUrl && (
-              <p className="text-xs text-zinc-500 mt-3 text-center max-w-xs">
-                Take a clear photo of your face. We use this securely to find you in the event gallery.
-              </p>
-            )}
+            <CameraCapture onCapture={setSelfie} allowUpload={false} />
+            <p className="text-xs text-zinc-500 mt-3 text-center max-w-xs">
+              Camera permission is used only to capture this selfie. Gallery uploads are disabled.
+            </p>
           </div>
 
           <div className="h-px w-full bg-white/5 my-4" />
