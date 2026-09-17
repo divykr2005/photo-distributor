@@ -62,6 +62,8 @@ services:
       redis:
         condition: service_healthy
     environment: *oracle-env
+    volumes:
+      - zip_staging:/app/uploads/zips
     ports:
       - "127.0.0.1:${BACKEND_BIND_PORT:-8001}:8000"
     command: >
@@ -118,7 +120,9 @@ services:
     environment: *oracle-env
     volumes:
       - celerybeat:/var/lib/celerybeat
-      - zip_staging:/var/tmp/zips
+      # ZIP records store absolute paths under STORAGE_ROOT (/app/uploads).
+      # Mount the same path in the API so completed archives are downloadable.
+      - zip_staging:/app/uploads/zips
     command: >
       celery -A core.celery_app.celery_app worker --loglevel=info
       --pool=threads --concurrency=4 --prefetch-multiplier=1
