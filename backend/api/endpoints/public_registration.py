@@ -1,27 +1,91 @@
 import os
 import uuid
+from html import escape
 from typing import cast, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from sqlalchemy.orm import Session
 from pydantic import EmailStr
 
 from datetime import datetime, timezone
 
-from api.dependencies import get_db, verify_firebase_token_dep
+from api.dependencies import get_db
 from models.event import Event
 from models.consent import BiometricConsent
 from core.config import settings
 from repositories.guest_repository import GuestRepository
 from schemas.guest import GuestCreate
 from worker.face_processor import FaceQualityError
+from middleware.rate_limit import limiter
+from schemas.email_otp import EmailOtpRequest, EmailOtpVerified, EmailOtpVerify
+from services.email_otp import (
+    EmailOtpInvalid,
+    EmailOtpRateLimited,
+    consume_verification,
+    issue_otp,
+    revoke_otp,
+    verify_otp,
+)
+from services.notifier import get_notifier
 
 router = APIRouter()
 
 UPLOAD_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "guests"
 )
+
+
+@router.post("/events/{event_id}/email-otp/request", status_code=202)
+@limiter.limit("5/minute")
+def request_email_otp(
+    request: Request,
+    event_id: UUID,
+    payload: EmailOtpRequest,
+    db: Session = Depends(get_db),
+):
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    email = str(payload.email).strip().lower()
+    try:
+        code = issue_otp(event_id, email)
+    except EmailOtpRateLimited as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Email verification is temporarily unavailable.") from exc
+
+    title = str(event.title).replace("\r", " ").replace("\n", " ")
+    result = get_notifier("smtp").send(
+        recipient=email,
+        subject=f"Your verification code for {title}",
+        body_text=(
+            f"Your SnapTracer verification code is {code}. "
+            "It expires in 10 minutes. If you did not request this code, ignore this email."
+        ),
+        body_html=(
+            f"<p>Your verification code for {escape(title)} is:</p>"
+            f"<p style=\"font-size:28px;font-weight:700;letter-spacing:6px\">{code}</p>"
+            "<p>It expires in 10 minutes. If you did not request this code, ignore this email.</p>"
+        ),
+    )
+    if not result.success:
+        revoke_otp(event_id, email)
+        raise HTTPException(status_code=503, detail="We could not send the verification email. Please try again.")
+    return {"message": "If the address can receive mail, a verification code has been sent."}
+
+
+@router.post("/events/{event_id}/email-otp/verify", response_model=EmailOtpVerified)
+@limiter.limit("10/minute")
+def confirm_email_otp(request: Request, event_id: UUID, payload: EmailOtpVerify):
+    try:
+        token = verify_otp(event_id, str(payload.email), payload.code)
+    except EmailOtpInvalid as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Email verification is temporarily unavailable.") from exc
+    return EmailOtpVerified(verification_token=token)
 
 @router.get("/events/{event_id}")
 def get_public_event_details(
@@ -52,17 +116,17 @@ async def public_guest_register(
     first_name: str = Form(...),
     last_name: str = Form(...),
     phone: str = Form(...),
-    email: str | None = Form(None),
+    email: EmailStr = Form(...),
+    email_verification_token: str = Form(...),
     gender: str | None = Form(None),
     biometric_consent: bool = Form(False),
     biometric_consent_text_version: str | None = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    firebase_token: dict = Depends(verify_firebase_token_dep),
 ):
     """
     Public endpoint for a guest to register themselves with a selfie.
-    Requires a valid Firebase ID token proving phone number ownership.
+    Requires a one-time token proving email address ownership.
     """
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
@@ -101,9 +165,14 @@ async def public_guest_register(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid phone number format: {str(e)}")
 
-    verified_phone = firebase_token.get("phone_number")
-    if not verified_phone or verified_phone != formatted_phone:
-        raise HTTPException(status_code=403, detail="Verified phone number does not match registration phone number.")
+    # Consume only after all cheap validation succeeds, immediately before the
+    # first persistent write. The token is one-time and event/email bound.
+    try:
+        verified = consume_verification(email_verification_token, event_id, str(email))
+    except EmailOtpInvalid as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Email verification is temporarily unavailable.") from exc
 
     # Create the guest record
     repo = GuestRepository(db)
@@ -113,7 +182,7 @@ async def public_guest_register(
         first_name=first_name,
         last_name=last_name,
         phone=formatted_phone,
-        email=email,
+        email=verified.email,
         gender=gender,
         consent_source=None,
         consent_text_version=None,

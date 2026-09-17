@@ -6,9 +6,6 @@ import { HiOutlineCheckCircle, HiOutlineExclamationCircle } from "react-icons/hi
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Toast from "@/components/ui/Toast";
-import api from "@/lib/api";
-import { auth } from "@/lib/firebase";
-import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth";
 import CameraCapture from "@/components/ui/CameraCapture";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
@@ -39,17 +36,8 @@ export default function MobileRegistrationPage() {
   // OTP State
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
-  const [verificationResult, setVerificationResult] = useState<ConfirmationResult | null>(null);
-  const [firebaseToken, setFirebaseToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Initialize recaptcha when component mounts
-    if (auth && !(window as any).recaptchaVerifier) {
-      (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
-        size: "invisible",
-      });
-    }
-  }, []);
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [otpBusy, setOtpBusy] = useState(false);
 
   useEffect(() => {
     if (!eventId) return;
@@ -70,27 +58,43 @@ export default function MobileRegistrationPage() {
   }, [eventId]);
 
   const handleSendOtp = async () => {
-    if (!phone || !auth) return;
+    if (!email) return;
     setError("");
+    setOtpBusy(true);
     try {
-      const appVerifier = (window as any).recaptchaVerifier;
-      const result = await signInWithPhoneNumber(auth, phone, appVerifier);
-      setVerificationResult(result);
+      const response = await fetch(`${API_URL}/public/events/${eventId}/email-otp/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Failed to send verification code.");
       setOtpSent(true);
+      setOtp("");
     } catch (err: any) {
       setError(err.message || "Failed to send OTP.");
+    } finally {
+      setOtpBusy(false);
     }
   };
 
   const handleVerifyOtp = async () => {
-    if (!verificationResult || !otp) return;
+    if (!email || !otp) return;
     setError("");
+    setOtpBusy(true);
     try {
-      const result = await verificationResult.confirm(otp);
-      const token = await result.user.getIdToken();
-      setFirebaseToken(token);
+      const response = await fetch(`${API_URL}/public/events/${eventId}/email-otp/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code: otp }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Invalid verification code.");
+      setVerificationToken(data.verification_token);
     } catch (err: any) {
       setError(err.message || "Invalid OTP.");
+    } finally {
+      setOtpBusy(false);
     }
   };
 
@@ -103,8 +107,8 @@ export default function MobileRegistrationPage() {
       return;
     }
 
-    if (!firebaseToken) {
-      setError("Please verify your phone number first.");
+    if (!verificationToken) {
+      setError("Please verify your email address first.");
       return;
     }
 
@@ -114,7 +118,8 @@ export default function MobileRegistrationPage() {
     formData.append("first_name", firstName);
     formData.append("last_name", lastName);
     formData.append("phone", phone);
-    if (email) formData.append("email", email);
+    formData.append("email", email);
+    formData.append("email_verification_token", verificationToken);
     if (gender) formData.append("gender", gender);
     formData.append("file", selfie);
     // Required by backend — biometric consent is implicit in this public registration form
@@ -126,9 +131,6 @@ export default function MobileRegistrationPage() {
     try {
       const res = await fetch(`${API_URL}/public/events/${eventId}/register`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${firebaseToken}`
-        },
         body: formData,
         signal: AbortSignal.timeout(120_000),
       });
@@ -238,28 +240,32 @@ export default function MobileRegistrationPage() {
             <div className="flex gap-2 items-end">
               <div className="flex-1">
                 <Input
-                  label="Phone Number"
-                  name="phone"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  label="Email Address"
+                  name="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setOtpSent(false);
+                    setVerificationToken(null);
+                  }}
                   required
-                  placeholder="+1 (555) 000-0000"
-                  disabled={otpSent || !!firebaseToken}
+                  placeholder="john@example.com"
+                  disabled={!!verificationToken}
                 />
               </div>
-              {!firebaseToken && (
+              {!verificationToken && (
                 <Button
                   type="button"
                   onClick={handleSendOtp}
-                  disabled={!phone || otpSent}
+                  disabled={!email || otpBusy}
                 >
-                  {otpSent ? "Sent" : "Verify"}
+                  {otpBusy ? "Sending..." : otpSent ? "Resend" : "Send Code"}
                 </Button>
               )}
             </div>
 
-            {otpSent && !firebaseToken && (
+            {otpSent && !verificationToken && (
               <div className="flex gap-2 items-end mt-2 animate-in fade-in zoom-in duration-300">
                 <div className="flex-1">
                   <Input
@@ -275,26 +281,27 @@ export default function MobileRegistrationPage() {
                 <Button
                   type="button"
                   onClick={handleVerifyOtp}
-                  disabled={!otp}
+                  disabled={!otp || otpBusy}
                 >
                   Confirm
                 </Button>
               </div>
             )}
 
-            {firebaseToken && (
+            {verificationToken && (
               <p className="text-emerald-400 text-sm font-medium flex items-center gap-1">
-                <HiOutlineCheckCircle className="w-5 h-5"/> Phone Verified
+                <HiOutlineCheckCircle className="w-5 h-5"/> Email Verified
               </p>
             )}
 
             <Input
-              label="Email Address"
-              name="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="john@example.com (Optional)"
+              label="Phone Number"
+              name="phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+              placeholder="+91 98765 43210"
             />
 
             <div>
@@ -316,13 +323,10 @@ export default function MobileRegistrationPage() {
           </div>
 
           <div className="pt-4">
-            {/* Recaptcha Container */}
-          <div id="recaptcha-container"></div>
-
           <Button
             type="submit"
             variant="primary"
-            disabled={submitting || !firebaseToken}
+            disabled={submitting || !verificationToken}
             className="w-full h-12 text-base font-semibold mt-8 shadow-indigo-500/25"
           >
             {submitting ? "Registering..." : "Submit Registration"}
