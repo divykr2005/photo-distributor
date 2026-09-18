@@ -1,3 +1,10 @@
 User-agent: *
+Allow: /privacy
+Allow: /terms
+Disallow: /dashboard
+Disallow: /events
+Disallow: /guests
+Disallow: /register
 Disallow: /g/
-Disallow: /events/*/find
+
+Sitemap: https://snaptracer.devs.surf/sitemap.xml

@@ -60,7 +60,7 @@ export default function RegisterPage() {
         </div>
         <h1 className="text-2xl font-bold text-zinc-100">Create your account</h1>
         <p className="text-sm text-zinc-400 mt-1">
-          Get started with PhotoDistro
+          Get started with SnapTracer
         </p>
       </div>
 
@@ -153,6 +153,12 @@ export default function RegisterPage() {
           >
             Sign in
           </Link>
+        </p>
+        <p className="mt-4 text-center text-xs leading-relaxed text-zinc-500">
+          By creating an account, you agree to our{" "}
+          <Link href="/terms" className="text-zinc-300 hover:text-white">Terms</Link>
+          {" "}and acknowledge our{" "}
+          <Link href="/privacy" className="text-zinc-300 hover:text-white">Privacy Policy</Link>.
         </p>
       </div>
     </div>

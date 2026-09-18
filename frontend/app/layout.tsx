@@ -16,9 +16,29 @@ const albert = Albert_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "PhotoDistro — AI Event Photo Distribution",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "https://snaptracer.devs.surf",
+  ),
+  title: {
+    default: "SnapTracer — Find Every Event Photo",
+    template: "%s | SnapTracer",
+  },
   description:
-    "Automated event photo distribution using AI-powered facial recognition. Match photos to guests and deliver via gallery or WhatsApp.",
+    "Private, AI-powered event photo matching that helps guests quickly find and download the photos they appear in.",
+  applicationName: "SnapTracer",
+  openGraph: {
+    type: "website",
+    siteName: "SnapTracer",
+    title: "SnapTracer — Find Every Event Photo",
+    description:
+      "Private, AI-powered event photo matching for guests and event teams.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SnapTracer — Find Every Event Photo",
+    description:
+      "Private, AI-powered event photo matching for guests and event teams.",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

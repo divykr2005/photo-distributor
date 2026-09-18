@@ -1,5 +1,11 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { HiOutlineShieldCheck } from "react-icons/hi";
+
+export const metadata: Metadata = {
+  title: "Privacy and Biometric Data Policy",
+  description: "How SnapTracer collects, protects, retains, and deletes personal and biometric data.",
+};
 
 export default function PrivacyPolicyPage() {
   return (
@@ -14,7 +20,7 @@ export default function PrivacyPolicyPage() {
               Privacy & Biometric Data Policy
             </h1>
             <p className="text-zinc-400 text-sm mt-1 font-medium">
-              Last Updated: {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              Last Updated: September 2026
             </p>
           </div>
         </div>
@@ -61,7 +67,10 @@ export default function PrivacyPolicyPage() {
             </p>
           </section>
 
-          <div className="pt-8 text-center border-t border-white/5">
+          <div className="flex justify-center gap-5 pt-8 text-center border-t border-white/5">
+            <Link href="/terms" className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
+              Terms and Conditions
+            </Link>
             <Link href="/" className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
               Return to Home
             </Link>

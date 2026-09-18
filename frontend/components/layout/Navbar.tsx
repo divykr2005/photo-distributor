@@ -16,7 +16,7 @@ export default function Navbar() {
           </div>
           <div>
             <h1 className="text-base font-bold text-white tracking-tight">
-              PhotoDistro
+              SnapTracer
             </h1>
             <p className="text-[10px] text-slate-500 -mt-0.5 font-medium uppercase tracking-widest">
               AI Event Photos

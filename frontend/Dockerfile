@@ -9,6 +9,10 @@ FROM node:20-alpine AS builder
 USER root
 WORKDIR /app
 ENV NODE_ENV=production
+ARG NEXT_PUBLIC_API_URL="https://api.snaptracer.devs.surf/api/v1"
+ARG NEXT_PUBLIC_APP_URL="https://snaptracer.devs.surf"
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1

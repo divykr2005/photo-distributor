@@ -68,7 +68,7 @@ export default function LoginPage() {
         </div>
         <h1 className="text-2xl font-bold text-zinc-100">Welcome back</h1>
         <p className="text-sm text-zinc-400 mt-1">
-          Sign in to your PhotoDistro account
+          Sign in to your SnapTracer account
         </p>
       </div>
 
