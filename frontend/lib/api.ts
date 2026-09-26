@@ -102,10 +102,14 @@ api.interceptors.response.use(
         console.log("api.ts: /auth/refresh failed", refreshError);
         processQueue(refreshError);
 
-        // Redirect to login on refresh failure (client-side only) if not already on an auth page
+        // Only protected organizer pages should navigate to login. The auth
+        // provider also checks the session on public pages, including `/`.
         if (typeof window !== "undefined") {
           const path = window.location.pathname;
-          if (!path.startsWith("/login") && !path.startsWith("/register")) {
+          const isOrganizerPage = ["/dashboard", "/analytics", "/guests", "/events"].some(
+            (prefix) => path === prefix || path.startsWith(`${prefix}/`)
+          ) && !/^\/events\/[^/]+\/find\/?$/.test(path);
+          if (isOrganizerPage) {
             console.log("api.ts: Redirecting to /login");
             window.location.href = "/login";
           }
