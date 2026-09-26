@@ -10,9 +10,11 @@ export const metadata: Metadata = {
 };
 
 const steps = [
-  ["01", "Make your event", "Set up a space for your trip, wedding, party, or college fest.", "✳"],
-  ["02", "Drop the whole camera roll", "Upload photos in bulk. No sorting people into separate folders.", "↥"],
-  ["03", "Share one QR", "Guests register with a selfie and find the photos they appear in.", "⌗"],
+  ["01", "Create your event", "Set up a space for your trip, wedding, party, or fest.", "✳"],
+  ["02", "Share the event QR", "Guests register with a photo and email.", "⌗"],
+  ["03", "Add your photos", "Bulk upload or paste a public Google Drive link.", "↥"],
+  ["04", "Notify guests", "When photos are ready, notify everyone in one tap.", "↗"],
+  ["05", "Download from email", "Guests open their email link and download in one tap.", "↓"],
 ];
 
 const faqs = [
@@ -56,7 +58,7 @@ export default function Home() {
       </div>
     </section>
     <section className={styles.stepsSection} id="how-it-works" aria-labelledby="steps-title">
-      <div><p className={styles.label}>THREE STEPS. THAT&apos;S IT.</p><h2 id="steps-title">From camera roll<br />to <em>everyone&apos;s roll.</em></h2><p className={styles.intro}>Built for the person who ends up with all the photos and all the requests.</p><Link className={styles.darkButton} href="/register">Start sharing smarter ↗</Link></div>
+      <div><p className={styles.label}>FIVE SIMPLE STEPS</p><h2 id="steps-title">From camera roll<br />to <em>everyone&apos;s roll.</em></h2><p className={styles.intro}>Built for the person who ends up with all the photos and all the requests.</p><Link className={styles.darkButton} href="/register">Start sharing smarter ↗</Link></div>
       <div className={styles.stepsList}>{steps.map(([number,title,body,icon]) => <article className={styles.step} key={number}><span>{number}</span><b aria-hidden="true">{icon}</b><div><h3>{title}</h3><p>{body}</p></div></article>)}</div>
     </section>
     <section className={styles.moments} id="moments" aria-labelledby="moments-title"><p className={styles.label}>SMALL GROUPS. BIG EVENTS. SAME MAGIC.</p><h2 id="moments-title">For every “send me<br /><em>my photos” moment.</em></h2><div className={styles.momentGrid}>
