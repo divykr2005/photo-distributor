@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { HiOutlineCamera, HiOutlineMail, HiOutlineLockClosed } from "react-icons/hi";
+import { HiOutlineMail, HiOutlineLockClosed } from "react-icons/hi";
+import BrandLogo from "@/components/branding/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { loginSchema, type LoginSchema } from "@/lib/validators";
 import Button from "@/components/ui/Button";
@@ -63,9 +64,7 @@ export default function LoginPage() {
     <div className="animate-in">
       {/* Logo */}
       <div className="text-center mb-8">
-        <div className="inline-flex p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 shadow-xl shadow-indigo-500/10 mb-4">
-          <HiOutlineCamera className="w-8 h-8 text-indigo-400" />
-        </div>
+        <div className="flex justify-center mb-5"><BrandLogo /></div>
         <h1 className="text-2xl font-bold text-zinc-100">Welcome back</h1>
         <p className="text-sm text-zinc-400 mt-1">
           Sign in to your SnapTracer account

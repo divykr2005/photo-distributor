@@ -1,7 +1,8 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { HiOutlineCamera, HiOutlineLogout } from "react-icons/hi";
+import { HiOutlineLogout } from "react-icons/hi";
+import BrandLogo from "@/components/branding/BrandLogo";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -10,19 +11,7 @@ export default function Navbar() {
     <nav className="h-16 border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-50">
       <div className="h-full px-6 flex items-center justify-between">
         {/* Logo / Brand */}
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-lg shadow-violet-500/20">
-            <HiOutlineCamera className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-white tracking-tight">
-              SnapTracer
-            </h1>
-            <p className="text-[10px] text-slate-500 -mt-0.5 font-medium uppercase tracking-widest">
-              AI Event Photos
-            </p>
-          </div>
-        </div>
+        <BrandLogo href="/dashboard" tagline="AI Event Photos" compact />
 
         {/* User section */}
         <div className="flex items-center gap-4">

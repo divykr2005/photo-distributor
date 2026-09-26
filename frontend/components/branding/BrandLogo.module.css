@@ -1,0 +1,12 @@
+.logo{display:inline-flex;align-items:center;gap:9px;width:max-content;text-decoration:none;white-space:nowrap;line-height:1}
+.mark{display:block;width:44px;height:44px;flex:none;object-fit:contain}
+.copy{display:flex;flex-direction:column;gap:5px}
+.name{font-size:24px;font-weight:850;letter-spacing:-.065em}
+.tagline{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase}
+.dark .name{color:#f8f9ff}
+.dark .tagline{color:#8492ae}
+.light .name{color:#101827}
+.light .tagline{color:#57657a}
+.compact .mark{width:30px;height:30px}
+.compact .name{font-size:17px}
+.compact .tagline{font-size:9px}

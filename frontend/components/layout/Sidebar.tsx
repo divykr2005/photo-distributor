@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import BrandLogo from "@/components/branding/BrandLogo";
 import { usePathname } from "next/navigation";
 import {
   HiOutlineViewGrid,
@@ -70,7 +71,7 @@ export default function Sidebar() {
       {/* Bottom section */}
       <div className="px-4 py-4 border-t border-slate-700/30">
         <div className="px-4 py-3 rounded-xl bg-gradient-to-br from-violet-600/10 to-indigo-600/10 border border-violet-500/10">
-          <p className="text-xs font-medium text-violet-300">SnapTracer</p>
+          <BrandLogo href="/dashboard" compact />
           <p className="text-[11px] text-slate-500 mt-0.5">
             Registration &amp; Infrastructure
           </p>

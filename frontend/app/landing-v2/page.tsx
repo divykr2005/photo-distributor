@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import BrandLogo from "@/components/branding/BrandLogo";
-import styles from "./landing.module.css";
+import styles from "./landing-v2.module.css";
 
 export const metadata: Metadata = {
   title: "SnapTracer — A better way to share every event photo",
@@ -26,7 +26,7 @@ export default function Home() {
   return <main className={styles.page}>
     <div className={styles.announcement}><b>✳</b> Made for the moments everyone wants back <span>↗</span></div>
     <header className={styles.header}>
-      <BrandLogo href="/" />
+      <BrandLogo href="/landing-v2" />
       <nav aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="#moments">Who it&apos;s for</a><a href="#questions">FAQs</a></nav>
       <div className={styles.headerActions}><Link href="/login">Log in</Link><Link className={styles.headerCta} href="/register">Create an event ↗</Link></div>
     </header>
@@ -66,7 +66,7 @@ export default function Home() {
     </div></section>
     <section className={styles.faq} id="questions" aria-labelledby="faq-title"><div><p className={styles.label}>GOOD QUESTIONS</p><h2 id="faq-title">Before you<br /><em>say cheese.</em></h2></div><div className={styles.faqList}>{faqs.map(([question,answer]) => <details key={question}><summary>{question}<span>+</span></summary><p>{answer}</p></details>)}</div></section>
     <section className={styles.finalCta}><p>YOUR CAMERA ROLL WILL THANK YOU</p><h2>Let the memories travel.<br /><em>Not the requests.</em></h2><Link className={styles.finalButton} href="/register">Create your event ↗</Link></section>
-    <footer className={styles.footer}><BrandLogo href="/" /><p>More moments. Less “photo bhej na.”</p><div><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/login">Log in</Link></div></footer>
+    <footer className={styles.footer}><BrandLogo href="/landing-v2" /><p>More moments. Less “photo bhej na.”</p><div><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/login">Log in</Link></div></footer>
   </main>;
 }
 
