@@ -27,7 +27,9 @@ export const metadata: Metadata = {
     "Private, AI-powered event photo matching that helps guests quickly find and download the photos they appear in.",
   applicationName: "SnapTracer",
   icons: {
-    icon: "/favicon.svg",
+    icon: [{ url: "/favicon-64.png?v=2", type: "image/png", sizes: "64x64" }],
+    shortcut: "/favicon.ico?v=2",
+    apple: "/apple-touch-icon.png?v=2",
   },
   openGraph: {
     type: "website",

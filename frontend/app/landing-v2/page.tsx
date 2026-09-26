@@ -54,7 +54,7 @@ export default function Home() {
       <p className={styles.label}>SOUND FAMILIAR?</p><h2 id="problem-title">The photos are amazing.<br /><em>The sharing is a mess.</em></h2>
       <div className={styles.problemGrid}>
         <article className={styles.problemCard}><small>01 / THE GROUP CHAT</small><div className={styles.messages}><span>“Meri solo wali?”</span><span>“Original quality mein bhejo!”</span><span>“Mere photos kidhar hain?”</span></div><p>Your camera roll becomes everyone&apos;s to-do list.</p></article>
-        <article className={styles.solutionCard}><small>02 / THE BETTER WAY</small><div className={styles.solutionMark}><Image src="/favicon.svg" alt="" width={44} height={44} /></div><h3>One upload.<br />Zero chasing.</h3><p>Everyone gets a simple way to find the pictures they&apos;re actually in.</p></article>
+        <article className={styles.solutionCard}><small>02 / THE BETTER WAY</small><div className={styles.solutionMark}><Image src="/favicon-64.png" alt="" width={44} height={44} /></div><h3>One upload.<br />Zero chasing.</h3><p>Everyone gets a simple way to find the pictures they&apos;re actually in.</p></article>
       </div>
     </section>
     <section className={styles.stepsSection} id="how-it-works" aria-labelledby="steps-title">

@@ -23,7 +23,7 @@ export default function BrandLogo({
       aria-label="SnapTracer home"
       className={[styles.logo, theme === "light" ? styles.light : styles.dark, compact ? styles.compact : "", className].filter(Boolean).join(" ")}
     >
-      <Image src="/favicon.svg" alt="" width={44} height={44} className={styles.mark} />
+      <Image src="/favicon-64.png" alt="" width={44} height={44} className={styles.mark} />
       <span className={styles.copy}>
         <span className={styles.name}>SnapTracer</span>
         {tagline && <span className={styles.tagline}>{tagline}</span>}
