@@ -5,17 +5,32 @@ import Script from "next/script";
 
 const CONSENT_KEY = "snaptracer_analytics_consent";
 
+type AnalyticsWindow = typeof window & {
+  dataLayer?: unknown[];
+  gtag?: (...args: unknown[]) => void;
+};
+
+function prepareGoogleTag() {
+  const analyticsWindow = window as AnalyticsWindow;
+  analyticsWindow.dataLayer = analyticsWindow.dataLayer || [];
+  analyticsWindow.gtag = (...args) => {
+    analyticsWindow.dataLayer?.push(args);
+  };
+}
+
 export default function MarketingAnalytics({ measurementId }: { measurementId: string }) {
   const [consent, setConsent] = useState<"accepted" | "declined" | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(CONSENT_KEY);
+    if (saved === "accepted") prepareGoogleTag();
     if (saved === "accepted" || saved === "declined") setConsent(saved);
     setReady(true);
   }, []);
 
   function choose(value: "accepted" | "declined") {
+    if (value === "accepted") prepareGoogleTag();
     window.localStorage.setItem(CONSENT_KEY, value);
     setConsent(value);
   }
@@ -27,26 +42,23 @@ export default function MarketingAnalytics({ measurementId }: { measurementId: s
       <Script
         src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`}
         strategy="lazyOnload"
-        onLoad={() => {
-          const analyticsWindow = window as typeof window & {
-            dataLayer?: unknown[];
-            gtag?: (...args: unknown[]) => void;
-          };
-          analyticsWindow.dataLayer = analyticsWindow.dataLayer || [];
-          analyticsWindow.gtag = (...args) => analyticsWindow.dataLayer?.push(args);
-          analyticsWindow.gtag("js", new Date());
-          analyticsWindow.gtag("consent", "default", {
+        onReady={() => {
+          const analyticsWindow = window as AnalyticsWindow;
+          const gtag = analyticsWindow.gtag;
+          if (!gtag) return;
+          gtag("js", new Date());
+          gtag("consent", "default", {
             analytics_storage: "granted",
             ad_storage: "denied",
             ad_user_data: "denied",
             ad_personalization: "denied",
           });
-          analyticsWindow.gtag("config", measurementId, {
+          gtag("config", measurementId, {
             send_page_view: false,
             allow_google_signals: false,
             allow_ad_personalization_signals: false,
           });
-          analyticsWindow.gtag("event", "page_view", {
+          gtag("event", "page_view", {
             page_location: window.location.origin + "/",
             page_path: "/",
             page_title: document.title,
