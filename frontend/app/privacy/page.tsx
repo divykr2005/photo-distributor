@@ -67,6 +67,13 @@ export default function PrivacyPolicyPage() {
             </p>
           </section>
 
+          <section className="space-y-4">
+            <h2 className="text-xl font-bold text-white tracking-tight">5. Optional Website Analytics</h2>
+            <p className="text-zinc-300 leading-relaxed">
+              With your permission, we use Google Analytics 4 on the public homepage to understand visits and improve the site. The analytics tag loads only after you choose “Allow analytics.” We do not send your name, email, photos, or event details to Analytics, and the tag is not used on registration, galleries, or organizer pages. You can change your choice by clearing this site’s local storage and revisiting the homepage.
+            </p>
+          </section>
+
           <div className="flex justify-center gap-5 pt-8 text-center border-t border-white/5">
             <Link href="/terms" className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
               Terms and Conditions
