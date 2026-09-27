@@ -42,8 +42,14 @@ export default function MarketingAnalytics({ measurementId }: { measurementId: s
             ad_personalization: "denied",
           });
           analyticsWindow.gtag("config", measurementId, {
+            send_page_view: false,
             allow_google_signals: false,
             allow_ad_personalization_signals: false,
+          });
+          analyticsWindow.gtag("event", "page_view", {
+            page_location: window.location.origin + "/",
+            page_path: "/",
+            page_title: document.title,
           });
         }}
       />

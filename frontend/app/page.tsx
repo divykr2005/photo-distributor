@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import BrandLogo from "@/components/branding/BrandLogo";
 import MarketingAnalytics from "@/components/analytics/MarketingAnalytics";
 import styles from "./landing.module.css";
@@ -34,14 +33,14 @@ export default function Home() {
     <header className={styles.header}>
       <BrandLogo href="/" />
       <nav aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="#moments">Who it&apos;s for</a><a href="#questions">FAQs</a></nav>
-      <div className={styles.headerActions}><Link href="/login">Log in</Link><Link className={styles.headerCta} href="/register">Create an event ↗</Link></div>
+      <div className={styles.headerActions}><a href="/login">Log in</a><a className={styles.headerCta} href="/register">Create an event ↗</a></div>
     </header>
     <section className={styles.hero} aria-labelledby="hero-title">
       <div className={styles.heroCopy}>
         <p className={styles.eyebrow}>— THE AFTER-PARTY, SORTED</p>
         <h1 id="hero-title">Great trip.<br />A thousand photos.<br /><em>One tired iPhone guy.</em></h1>
         <p className={styles.lead}>You took the photos. Now everyone wants theirs. Upload them once to SnapTracer and let every person find their own moments.</p>
-        <div className={styles.heroActions}><Link className={styles.primaryButton} href="/register">Create your event <span>↗</span></Link><a href="#how-it-works">See how it works ↓</a></div>
+        <div className={styles.heroActions}><a className={styles.primaryButton} href="/register">Create your event <span>↗</span></a><a href="#how-it-works">See how it works ↓</a></div>
         <p className={styles.footnote}><b>✳ ✳ ✳</b> One link for everyone. Their photos, in one place.</p>
       </div>
       <div className={styles.heroVisual}>
@@ -82,7 +81,7 @@ export default function Home() {
       </div>
     </section>
     <section className={styles.stepsSection} id="how-it-works" aria-labelledby="steps-title">
-      <div><p className={styles.label}>FIVE SIMPLE STEPS</p><h2 id="steps-title">From camera roll<br />to <em>everyone&apos;s roll.</em></h2><p className={styles.intro}>Built for the person who ends up with all the photos and all the requests.</p><Link className={styles.darkButton} href="/register">Start sharing smarter ↗</Link></div>
+      <div><p className={styles.label}>FIVE SIMPLE STEPS</p><h2 id="steps-title">From camera roll<br />to <em>everyone&apos;s roll.</em></h2><p className={styles.intro}>Built for the person who ends up with all the photos and all the requests.</p><a className={styles.darkButton} href="/register">Start sharing smarter ↗</a></div>
       <div className={styles.stepsList}>{steps.map(([number,title,body,icon]) => <article className={styles.step} key={number}><span>{number}</span><b aria-hidden="true">{icon}</b><div><h3>{title}</h3><p>{body}</p></div></article>)}</div>
     </section>
     <section className={styles.moments} id="moments" aria-labelledby="moments-title"><p className={styles.label}>SMALL GROUPS. BIG EVENTS. SAME MAGIC.</p><h2 id="moments-title">For every “send me<br /><em>my photos” moment.</em></h2><div className={styles.momentGrid}>
@@ -91,7 +90,7 @@ export default function Home() {
       <article><small>03</small><strong>🎟️</strong><h3>Fests & events</h3><p>One place for a crowd to find their own photos.</p></article>
     </div></section>
     <section className={styles.faq} id="questions" aria-labelledby="faq-title"><div><p className={styles.label}>GOOD QUESTIONS</p><h2 id="faq-title">Before you<br /><em>say cheese.</em></h2></div><div className={styles.faqList}>{faqs.map(([question,answer]) => <details key={question}><summary>{question}<span>+</span></summary><p>{answer}</p></details>)}</div></section>
-    <section className={styles.finalCta}><p>YOUR CAMERA ROLL WILL THANK YOU</p><h2>Let the memories travel.<br /><em>Not the requests.</em></h2><Link className={styles.finalButton} href="/register">Create your event ↗</Link></section>
-    <footer className={styles.footer}><BrandLogo href="/" /><p>More moments. Less “photo bhej na.”</p><div><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/login">Log in</Link></div></footer>
+    <section className={styles.finalCta}><p>YOUR CAMERA ROLL WILL THANK YOU</p><h2>Let the memories travel.<br /><em>Not the requests.</em></h2><a className={styles.finalButton} href="/register">Create your event ↗</a></section>
+    <footer className={styles.footer}><BrandLogo href="/" /><p>More moments. Less “photo bhej na.”</p><div><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/login">Log in</a></div></footer>
   </main>{measurementId && /^G-[A-Z0-9]+$/.test(measurementId) && <MarketingAnalytics measurementId={measurementId} />}</>;
 }
