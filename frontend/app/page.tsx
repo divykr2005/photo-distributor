@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   description: "Stop sending event photos one by one. Upload once and let every guest find their own photos privately.",
 };
 
+export const dynamic = "force-static";
+
 const steps = [
   ["01", "Create your event", "Set up a space for your trip, wedding, party, or fest.", "✳"],
   ["02", "Share the event QR", "Guests register with a photo and email.", "⌗"],
@@ -41,7 +43,7 @@ export default function Home() {
         <p className={styles.footnote}><b>✳ ✳ ✳</b> One link for everyone. Their photos, in one place.</p>
       </div>
       <div className={styles.heroVisual}>
-        <div className={styles.heroPhoto}><Image src="/trip-friends.png" alt="Friends taking a group selfie on a mountain trip" fill priority sizes="(max-width: 800px) 100vw, 52vw" /></div>
+        <div className={styles.heroPhoto}><Image src="/trip-friends.webp" alt="Friends taking a group selfie on a mountain trip" fill priority unoptimized sizes="(max-width: 800px) 100vw, 52vw" /></div>
         <div className={`${styles.bubble} ${styles.bubbleOne}`}>💬 Bhai meri photo bhej na yaar</div>
         <div className={`${styles.bubble} ${styles.bubbleTwo}`}>📸 iPhone wale, file bana ke bhej!</div>
         <div className={`${styles.bubble} ${styles.bubbleThree}`}>⏰ Jaldi bhej de pleaseee</div>
@@ -71,4 +73,3 @@ export default function Home() {
     <footer className={styles.footer}><BrandLogo href="/" /><p>More moments. Less “photo bhej na.”</p><div><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/login">Log in</Link></div></footer>
   </main>;
 }
-

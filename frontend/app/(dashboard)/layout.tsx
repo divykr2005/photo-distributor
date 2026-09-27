@@ -1,13 +1,28 @@
 "use client";
 
+export const runtime = "edge";
+
 import { useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
 import Spinner from "@/components/ui/Spinner";
 import { navigateWithinOrigin } from "@/lib/navigation";
+import { TaskProvider } from "@/contexts/TaskContext";
+import GlobalTaskWidget from "@/components/ui/GlobalTaskWidget";
 
-export default function DashboardLayout({
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthProvider>
+      <TaskProvider>
+        <GlobalTaskWidget />
+        <DashboardContent>{children}</DashboardContent>
+      </TaskProvider>
+    </AuthProvider>
+  );
+}
+
+function DashboardContent({
   children,
 }: {
   children: React.ReactNode;

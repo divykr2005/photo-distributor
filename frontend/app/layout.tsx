@@ -1,16 +1,10 @@
 import type { Metadata } from "next";
-import { Albert_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { TaskProvider } from "@/contexts/TaskContext";
-import GlobalTaskWidget from "@/components/ui/GlobalTaskWidget";
 
-// Cloudflare Pages Functions run Next.js server-rendered routes on the Edge
-// Runtime. Defining this at the root makes every child route inherit it.
-export const runtime = "edge";
-
-const albert = Albert_Sans({
-  subsets: ["latin"],
+const albert = localFont({
+  src: "./fonts/albert-sans-latin.woff2",
+  weight: "100 900",
   variable: "--font-albert",
   display: "swap",
 });
@@ -50,12 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${albert.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-sans bg-zinc-950 text-zinc-100 selection:bg-indigo-500/30">
-        <AuthProvider>
-          <TaskProvider>
-            <GlobalTaskWidget />
-            {children}
-          </TaskProvider>
-        </AuthProvider>
+        {children}
       </body>
     </html>
   );

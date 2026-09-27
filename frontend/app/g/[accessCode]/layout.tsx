@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+export const runtime = "edge";
+
 export const metadata: Metadata = {
   title: "Your Event Photos",
   description: "View and download your event photos",

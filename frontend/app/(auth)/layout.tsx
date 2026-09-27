@@ -1,11 +1,21 @@
 "use client";
 
+export const runtime = "edge";
+
 import { useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Spinner from "@/components/ui/Spinner";
 import { navigateWithinOrigin } from "@/lib/navigation";
 
-export default function AuthLayout({
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthProvider>
+      <AuthContent>{children}</AuthContent>
+    </AuthProvider>
+  );
+}
+
+function AuthContent({
   children,
 }: {
   children: React.ReactNode;
