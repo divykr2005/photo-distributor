@@ -45,17 +45,24 @@ export default function Home() {
       <div className={styles.heroVisual}>
         <div className={styles.heroPhoto}>
           {/* Static responsive files avoid the image endpoint, which serves the original PNG on Pages. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/trip-friends.webp"
-            srcSet="/trip-friends-640.webp 640w, /trip-friends-828.webp 828w, /trip-friends-1200.webp 1200w, /trip-friends.webp 1536w"
-            sizes="(max-width: 800px) 100vw, 52vw"
-            width={1536}
-            height={1024}
-            fetchPriority="high"
-            decoding="async"
-            alt="Friends taking a group selfie on a mountain trip"
-          />
+          <picture>
+            <source
+              type="image/avif"
+              srcSet="/trip-friends-640.avif 640w, /trip-friends-828.avif 828w, /trip-friends-1200.avif 1200w, /trip-friends-1536.avif 1536w"
+              sizes="(max-width: 800px) 100vw, 52vw"
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/trip-friends.webp"
+              srcSet="/trip-friends-640.webp 640w, /trip-friends-828.webp 828w, /trip-friends-1200.webp 1200w, /trip-friends.webp 1536w"
+              sizes="(max-width: 800px) 100vw, 52vw"
+              width={1536}
+              height={1024}
+              fetchPriority="high"
+              decoding="async"
+              alt="Friends taking a group selfie on a mountain trip"
+            />
+          </picture>
         </div>
         <div className={`${styles.bubble} ${styles.bubbleOne}`}>💬 Bhai meri photo bhej na yaar</div>
         <div className={`${styles.bubble} ${styles.bubbleTwo}`}>📸 iPhone wale, file bana ke bhej!</div>
