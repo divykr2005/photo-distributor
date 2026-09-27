@@ -43,7 +43,20 @@ export default function Home() {
         <p className={styles.footnote}><b>✳ ✳ ✳</b> One link for everyone. Their photos, in one place.</p>
       </div>
       <div className={styles.heroVisual}>
-        <div className={styles.heroPhoto}><Image src="/trip-friends.webp" alt="Friends taking a group selfie on a mountain trip" fill priority unoptimized sizes="(max-width: 800px) 100vw, 52vw" /></div>
+        <div className={styles.heroPhoto}>
+          {/* Static responsive files avoid the image endpoint, which serves the original PNG on Pages. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/trip-friends.webp"
+            srcSet="/trip-friends-640.webp 640w, /trip-friends-828.webp 828w, /trip-friends-1200.webp 1200w, /trip-friends.webp 1536w"
+            sizes="(max-width: 800px) 100vw, 52vw"
+            width={1536}
+            height={1024}
+            fetchPriority="high"
+            decoding="async"
+            alt="Friends taking a group selfie on a mountain trip"
+          />
+        </div>
         <div className={`${styles.bubble} ${styles.bubbleOne}`}>💬 Bhai meri photo bhej na yaar</div>
         <div className={`${styles.bubble} ${styles.bubbleTwo}`}>📸 iPhone wale, file bana ke bhej!</div>
         <div className={`${styles.bubble} ${styles.bubbleThree}`}>⏰ Jaldi bhej de pleaseee</div>
